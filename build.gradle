@@ -1,0 +1,77 @@
+buildscript {
+    repositories {
+        jcenter()
+        maven { url = "http://files.minecraftforge.net/maven" }
+        maven {
+            name = 'sponge'
+            url = 'https://repo.spongepowered.org/repository/maven-public/'
+        }
+    }
+    dependencies {
+        classpath 'net.minecraftforge.gradle:ForgeGradle:2.3-SNAPSHOT'
+        classpath 'com.github.jengelman.gradle.plugins:shadow:4.0.1'
+    }
+}
+
+apply plugin: 'net.minecraftforge.gradle.forge'
+apply plugin: 'com.github.johnrengelman.shadow'
+//Only edit below this line, the above code adds and enables the nessasary things for Forge to be setup.
+
+
+group 'com.github.steinein'
+version '1.12.2-1.0.0'
+archivesBaseName = "PixelWarzone"
+
+sourceCompatibility = targetCompatibility = "1.8" // Need this here so eclipse task generates correctly.
+compileJava.options.encoding = "UTF-8"
+
+minecraft {
+    version = "1.12.2-14.23.5.2838"
+    runDir = "run"
+    mappings = "snapshot_20180808"
+}
+
+repositories {
+    mavenCentral()
+    maven {
+        name = 'sponge'
+        url = 'https://repo.spongepowered.org/repository/maven-public/'
+    }
+    /* maven {
+        name = 'enginehub'
+        url = 'https://maven.enginehub.org/repo/'
+    } */
+}
+
+dependencies {
+    implementation 'junit:junit:4.12'
+    implementation 'org.junit.jupiter:junit-jupiter:5.4.2'
+    /* implementation ('com.sk89q.worldedit:worldedit-sponge:7.1.0') {
+        exclude group: 'org.slf4j', module: 'slf4j-api' // Package is corrupt in WE repo, SpongeAPI has it anyway
+    } */
+    implementation "org.spongepowered:math:2.0.0"
+    compile 'org.spongepowered:spongeapi:7.3.0'
+    compile fileTree(dir: 'libs', include: '*.jar')
+}
+
+processResources {
+    // this will ensure that this task is redone when the versions change.
+    inputs.property "version", project.version
+    inputs.property "mcversion", project.minecraft.version
+
+    // replace stuff in mcmod.info, nothing else
+    from(sourceSets.main.resources.srcDirs) {
+        include 'mcmod.info'
+        // replace version and mcversion
+        expand 'version': project.version, 'mcversion': project.minecraft.version
+    }
+
+    // copy everything else, thats not the mcmod.info
+    from(sourceSets.main.resources.srcDirs) {
+        exclude 'mcmod.info'
+    }
+}
+
+test {
+    useJUnitPlatform()
+}
