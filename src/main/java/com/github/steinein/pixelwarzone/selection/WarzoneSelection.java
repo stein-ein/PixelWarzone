@@ -15,12 +15,15 @@ public class WarzoneSelection {
 
     private Point firstPos = null;
     private Point secondPos = null;
+    private String world;
 
-    public WarzoneSelection() {}
+    public WarzoneSelection() {
+    }
 
-    public WarzoneSelection(final Point firstPos, final Point secondPos) {
+    public WarzoneSelection(final Point firstPos, final Point secondPos, final String world) {
         this.firstPos = firstPos;
         this.secondPos = secondPos;
+        this.world = world;
     }
 
     public void setFirstPos(final Point firstPos) {
@@ -29,6 +32,10 @@ public class WarzoneSelection {
 
     public void setSecondPos(final Point secondPos) {
         this.secondPos = secondPos;
+    }
+
+    public void setWorld(String world) {
+        this.world = world;
     }
 
     public boolean isCompleteSelection() {
@@ -41,6 +48,10 @@ public class WarzoneSelection {
 
     public Point getSecondPos() {
         return this.secondPos;
+    }
+
+    public String getWorld() {
+        return this.world;
     }
 
     public int greaterX() {

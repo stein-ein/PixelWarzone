@@ -54,6 +54,8 @@ public class WarzoneConfig {
         warzone.getNode("secondPos").getNode("x").setValue(region.getSecondPos().getX());
         warzone.getNode("secondPos").getNode("z").setValue(region.getSecondPos().getZ());
 
+        warzone.getNode("world").setValue(region.getWorld());
+
         this.saveConfig();
 
     }
@@ -77,7 +79,9 @@ public class WarzoneConfig {
                 warzone.getNode("secondPos", "z").getInt()
         );
 
-        return new DefinedWarzone(name, new WarzoneSelection(firstPos, secondPos));
+        String world = warzone.getNode("world").getString();
+
+        return new DefinedWarzone(name, new WarzoneSelection(firstPos, secondPos, world));
 
     }
 
