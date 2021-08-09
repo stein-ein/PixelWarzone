@@ -21,7 +21,6 @@ public class DefinedWarzone {
 
      */
     public boolean hasPlayer(final Player player) {
-
         final Location<World> loc = player.getLocation();
 
         final int locX = loc.getBlockX();
@@ -30,7 +29,7 @@ public class DefinedWarzone {
         final boolean withinXBound = (locX <= this.selection.greaterX()) && (locX >= this.selection.lesserX());
         final boolean withinZBound = (locZ <= this.selection.greaterZ()) && (locZ >= this.selection.lesserZ());
 
-        return withinXBound && withinZBound;
+        return withinXBound && withinZBound && selection.getWorld() != null && selection.getWorld().equals(player.getWorld().getName());
 
     }
 

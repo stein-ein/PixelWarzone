@@ -27,7 +27,10 @@ public class LoseTrainerBattleInWarzone {
     @SubscribeEvent
     public void loseBattle(BattleEndEvent event) {
 
-        this.plugin.debug("Starting LostToTrainerEvent for a potential warzone battle!");
+        final List<EntityPlayerMP> players = event.getPlayers();
+        if (players == null || players.size() != 2) {
+            return;
+        }
 
         if (event.abnormal) { // We ignore crashes/forced/error
             this.plugin.debug("The battle had ended abnormally. Ignoring the rest.");
@@ -37,12 +40,6 @@ public class LoseTrainerBattleInWarzone {
         final EnumBattleEndCause cause = event.cause;
         if (cause == EnumBattleEndCause.FORCE) { // Ignore forced endings
             this.plugin.debug("Ending was forced. Ignoring the rest.");
-        }
-
-        final List<EntityPlayerMP> players = event.getPlayers();
-        if (players.size() != 2) {
-            this.plugin.debug("There are not exactly two player battle participants. Ignoring the rest.");
-            return;
         }
 
         final WarzonePlayer winner = this.get(event.results, Result.WINNER);
@@ -55,6 +52,11 @@ public class LoseTrainerBattleInWarzone {
 
         if (loser == null) {
             this.plugin.getLogger().error("Battle loser could not be found. Check debug output for more info.");
+            return;
+        }
+
+        if (!winner.inWarzone() || !loser.inWarzone()) {
+            this.plugin.debug("Winner or loser not in warzone. Ignoring the rest.");
             return;
         }
 

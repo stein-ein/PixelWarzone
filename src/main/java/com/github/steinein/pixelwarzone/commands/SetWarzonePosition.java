@@ -76,6 +76,8 @@ public class SetWarzonePosition {
 
         if (selection.isPresent()) {
 
+            selection.get().setWorld(player.getWorld().getName());
+
             if (type == SelectionType.FIRST) {
                 selection.get().setFirstPos(playerLoc);
             } else {

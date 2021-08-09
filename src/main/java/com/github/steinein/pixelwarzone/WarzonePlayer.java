@@ -28,7 +28,18 @@ public class WarzonePlayer {
         this.forgePlayer = forgePlayer;
     }
 
+    private WarzonePlayer(final PixelWarzone plugin, final Player spongePlayer) {
+        this.plugin = plugin;
+        this.spongePlayer = spongePlayer;
+        this.location = spongePlayer.getLocation();
+        this.forgePlayer = (EntityPlayerMP) spongePlayer;
+    }
+
     public static WarzonePlayer fromForge(final PixelWarzone plugin, final EntityPlayerMP player) {
+        return new WarzonePlayer(plugin, player);
+    }
+
+    public static WarzonePlayer fromSponge(final PixelWarzone plugin, final Player player) {
         return new WarzonePlayer(plugin, player);
     }
 
