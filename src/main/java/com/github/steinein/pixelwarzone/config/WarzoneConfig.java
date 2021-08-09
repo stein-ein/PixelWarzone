@@ -33,6 +33,10 @@ public class WarzoneConfig {
                         this.rootNode.getNode(ConfigOption.SETTINGS, ConfigOption.LOSE_POKEMON).getInt()));
     }
 
+    public int getTurnTimeSeconds() {
+        return Math.max(0, this.rootNode.getNode(ConfigOption.SETTINGS, ConfigOption.TURN_TIME).getInt());
+    }
+
     public Set<String> getWarzoneNames() {
 
         return this.rootNode.getNode(ConfigOption.WARZONE).getChildrenMap()

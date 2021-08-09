@@ -3,9 +3,13 @@ package com.github.steinein.pixelwarzone;
 import com.github.steinein.pixelwarzone.messages.Message;
 import com.pixelmonmod.pixelmon.Pixelmon;
 import com.pixelmonmod.pixelmon.api.pokemon.Pokemon;
+import com.pixelmonmod.pixelmon.battles.BattleRegistry;
+import com.pixelmonmod.pixelmon.battles.controller.BattleControllerBase;
+import com.pixelmonmod.pixelmon.battles.controller.participants.PlayerParticipant;
 import com.pixelmonmod.pixelmon.storage.PlayerPartyStorage;
 import net.minecraft.entity.player.EntityPlayerMP;
 import org.spongepowered.api.entity.living.player.Player;
+import org.spongepowered.api.text.Text;
 import org.spongepowered.api.world.Location;
 import org.spongepowered.api.world.World;
 
@@ -55,6 +59,27 @@ public class WarzonePlayer {
 
     }
 
+    public boolean inBattle() {
+        return BattleRegistry.getBattle(this.forgePlayer) != null;
+    }
+
+    public BattleControllerBase getBattle() {
+        return BattleRegistry.getBattle(this.forgePlayer);
+    }
+
+    public WarzonePlayer getBattleOpponent() {
+        BattleControllerBase bcb = this.getBattle();
+        List<PlayerParticipant> players = bcb.getPlayers();
+
+        for (PlayerParticipant player : players) {
+            if (player.player.equals(this.forgePlayer)) continue;
+
+            return WarzonePlayer.fromForge(plugin, player.player);
+        }
+
+        return null;
+    }
+
     public Pokemon removePokemon(final int howMany) {
 
         final PlayerPartyStorage party = this.getParty();
@@ -78,7 +103,11 @@ public class WarzonePlayer {
             return null;
         }
 
-        this.plugin.debug("Removing Pokemon %s from slot position %d.", removedPokemon.getDisplayName(), randomSlot);
+        this.plugin.log("Removing Pokemon %s (slot: %d) from player %s.",
+                removedPokemon.getDisplayName(),
+                randomSlot,
+                this.spongePlayer.getDisplayNameData().displayName());
+
         party.set(randomSlot, null);
 
         return removedPokemon;
@@ -91,6 +120,10 @@ public class WarzonePlayer {
 
     public void sendMessage(final Message message, final Object... args) {
         this.spongePlayer.sendMessage(message.getMessage(args));
+    }
+
+    public void sendMessage(final Text text) {
+        this.spongePlayer.sendMessage(text);
     }
 
     private List<Integer> getValidSlots() {

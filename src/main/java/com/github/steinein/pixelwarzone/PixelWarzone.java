@@ -162,8 +162,12 @@ public class PixelWarzone {
 
     public void debug(String message, Object... args) {
         if (this.getPluginConfig().isDebugEnabled()) {
-            logger.info(String.format(message, args));
+            this.logger.info(String.format(message, args));
         }
+    }
+
+    public void log(String message, Object... args) {
+        this.logger.info(String.format(message, args));
     }
 
     public Logger getLogger() {

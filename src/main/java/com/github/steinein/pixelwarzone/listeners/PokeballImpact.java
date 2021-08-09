@@ -66,7 +66,11 @@ public class PokeballImpact {
         PlayerParticipant playerParticipant1 = new PlayerParticipant(entityPlayerMP, poke1);
         EntityPixelmon poke2 = Pixelmon.storageManager.getParty(challengedPlayer.getUniqueID()).getTeam().get(0).getOrSpawnPixelmon((Entity) challengedPlayer);
         PlayerParticipant playerParticipant2 = new PlayerParticipant(challengedPlayer, poke2);
-        BattleRegistry.startBattle(new BattleParticipant[]{playerParticipant1}, new BattleParticipant[]{playerParticipant2}, new BattleRules(EnumBattleType.Single));
+
+        BattleRules rules = new BattleRules(EnumBattleType.Single);
+        rules.turnTime = plugin.getPluginConfig().getTurnTimeSeconds();
+
+        BattleRegistry.startBattle(new BattleParticipant[]{playerParticipant1}, new BattleParticipant[]{playerParticipant2}, rules);
     }
 
     private boolean canBattle(EntityPlayerMP player) {
