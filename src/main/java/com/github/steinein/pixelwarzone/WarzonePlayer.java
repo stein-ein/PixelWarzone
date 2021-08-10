@@ -13,15 +13,18 @@ import org.spongepowered.api.text.Text;
 import org.spongepowered.api.world.Location;
 import org.spongepowered.api.world.World;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Random;
+import java.util.*;
 
 public class WarzonePlayer {
 
     private final PixelWarzone plugin;
 
     private final Player spongePlayer;
+
+    public EntityPlayerMP getForgePlayer() {
+        return forgePlayer;
+    }
+
     private final EntityPlayerMP forgePlayer;
     private final Location<World> location;
 

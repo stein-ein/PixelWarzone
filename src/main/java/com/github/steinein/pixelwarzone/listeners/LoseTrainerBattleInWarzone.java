@@ -72,6 +72,10 @@ public class LoseTrainerBattleInWarzone {
 
         if (success) {
             winner.sendMessage(Message.GAINED_POKEMON, lostPoke.getDisplayName());
+            this.plugin.getLogger().info(
+                    "Gave " + winner.getForgePlayer().getName() + " " + lostPoke.getDisplayName() + " that "
+                            + loser.getForgePlayer().getName() + " lost."
+            );
         } else {
             this.plugin.debug("Could not give pokemon to the winner. Check console output.");
         }

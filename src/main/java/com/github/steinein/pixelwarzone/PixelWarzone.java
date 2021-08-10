@@ -24,8 +24,7 @@ import org.spongepowered.api.scheduler.Task;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 
 @Plugin(
@@ -40,6 +39,7 @@ import java.util.concurrent.TimeUnit;
 public class PixelWarzone {
 
     private static final String CONFIG = "pixelwarzone.conf";
+    private static PixelWarzone instance;
 
     @Inject
     private Logger logger;
@@ -56,9 +56,15 @@ public class PixelWarzone {
     private SelectionsManager selectionsManager;
     private List<DefinedWarzone> warzoneList;
 
+    public final Map<UUID, UUID> requestMap = new HashMap<UUID, UUID>();
+
+    public static PixelWarzone getInstance() {
+        return instance;
+    }
+
     @Listener
     public void onServerInit(GameInitializationEvent event) {
-
+        instance = this;
         logger.info("Loading plugin configuration...");
         HoconConfigurationLoader loader = this.loadConfig();
 
@@ -158,6 +164,7 @@ public class PixelWarzone {
         Pixelmon.EVENT_BUS.register(new PokeballImpact(this));
         Pixelmon.EVENT_BUS.register(new StartBattle(this));
         MinecraftForge.EVENT_BUS.register(new PlayerQuit(this));
+        game.getEventManager().registerListeners(this, new PlayerCommand(this));
     }
 
     public void debug(String message, Object... args) {

@@ -7,8 +7,8 @@ import com.github.steinein.pixelwarzone.messages.Message;
 import com.pixelmonmod.pixelmon.battles.BattleRegistry;
 import com.pixelmonmod.pixelmon.battles.controller.BattleControllerBase;
 import com.pixelmonmod.pixelmon.enums.battle.EnumBattleEndCause;
-import net.minecraft.entity.player.EntityPlayer;
 import org.spongepowered.api.command.CommandResult;
+import org.spongepowered.api.command.args.GenericArguments;
 import org.spongepowered.api.command.spec.CommandSpec;
 import org.spongepowered.api.entity.living.player.Player;
 import org.spongepowered.api.text.Text;
@@ -16,8 +16,7 @@ import org.spongepowered.api.text.action.TextActions;
 import org.spongepowered.api.text.format.*;
 import org.spongepowered.api.text.serializer.TextSerializers;
 
-import java.util.List;
-import java.util.Set;
+import java.util.Optional;
 
 public class EndBattle {
 
@@ -27,10 +26,15 @@ public class EndBattle {
 
         this.spec = CommandSpec.builder()
                 .description(Text.of("Ends a pokemon battle in the warzone."))
+                .arguments(
+                        GenericArguments.optional(GenericArguments.string(Text.of("accept")))
+                )
                 .executor((src, args) -> {
 
                     if (src instanceof Player) {
+                        Player player = (Player) src;
                         WarzonePlayer warzonePlayer = WarzonePlayer.fromSponge(plugin, (Player) src);
+                        Optional<String> acceptOpt = args.<String>getOne("accept");
                         if (warzonePlayer.inWarzone()) {
 
                             if (!warzonePlayer.inBattle()) {
@@ -40,18 +44,28 @@ public class EndBattle {
 
                             BattleControllerBase bcb = warzonePlayer.getBattle();
 
+                            if (acceptOpt.isPresent() && acceptOpt.get().equalsIgnoreCase("accept")) {
+                                if (plugin.requestMap.get(player.getUniqueId()) != null) {
+                                    warzonePlayer.sendMessage(Text.of("Ending the battle!"));
+                                    bcb.endBattle(EnumBattleEndCause.FLEE);
+                                    plugin.requestMap.remove(player.getUniqueId());
+                                } else {
+                                    warzonePlayer.sendMessage(Text.of("You have not received a request to end the battle!"));
+                                }
+                                return CommandResult.success();
+                            }
+
                             if (bcb.getPlayers().size() > 1) {
 
                                 WarzonePlayer opponent = warzonePlayer.getBattleOpponent();
-                                return this.handlePlayerBattle(opponent, bcb);
+                                src.sendMessage(Text.of("Sending " + opponent.getForgePlayer().getName() + " a request to end the battle."));
+                                return this.handlePlayerBattle(warzonePlayer, opponent);
 
                             } else { // NPC or Pokemon battle
 
                                 // This will still cause pokemon loss, will figure out that later
                                 bcb.endBattle(EnumBattleEndCause.FORCE);
-
                             }
-
 
 
                         } else {
@@ -66,15 +80,17 @@ public class EndBattle {
 
     }
 
-    private CommandResult handlePlayerBattle(final WarzonePlayer opponent, final BattleControllerBase bcb) {
+    private CommandResult handlePlayerBattle(final WarzonePlayer requester, final WarzonePlayer opponent) {
 
-        Text endBattleRequest = Text.builder(Message.END_BATTLE_PROPOSE.getRaw())
-                .color(TextColors.GOLD)
-                .style(TextStyles.BOLD, TextStyles.UNDERLINE)
-                .onClick(TextActions.executeCallback(clicker -> bcb.endBattle(EnumBattleEndCause.FORCE)))
+        Text endBattleRequest = TextSerializers.FORMATTING_CODE.deserialize(Message.END_BATTLE_PROPOSE.getRaw())
+                .toBuilder()
+                .onHover(TextActions.showText(Text.of(TextColors.WHITE, "Click to end the battle!")))
+                .onClick(TextActions.runCommand("/endbattle " + opponent.getForgePlayer().getName()))
                 .build();
 
         opponent.sendMessage(endBattleRequest);
+
+        PixelWarzone.getInstance().requestMap.put(opponent.getForgePlayer().getUniqueID(), requester.getForgePlayer().getUniqueID());
 
         return CommandResult.success();
 

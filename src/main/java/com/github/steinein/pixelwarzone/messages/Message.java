@@ -35,7 +35,7 @@ public enum Message {
 
     // Proposal
 
-    END_BATTLE_PROPOSE("CLICK HERE TO END THIS BATTLE (YOU WILL NOT LOSE YOUR POKEMON!)"); // Use as raw & unformatted
+    END_BATTLE_PROPOSE("&aYou have received a request to end the battle. Use &e/warzone endbattle accept &c(YOU WILL NOT LOSE YOUR POKEMON!)"); // Use as raw & unformatted
 
     private final String message;
 
