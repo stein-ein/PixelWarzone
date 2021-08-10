@@ -17,6 +17,8 @@ public enum Message {
 
     MISSING_ARGUMENT("&cYou have not provided argument &6%s&c!"),
 
+    NOT_IN_BATTLE("&cYou are not in a battle!"),
+
     // Success
 
     ZONE_DEFINE_SUCCESS("&aYou have successfully defined zone &6%s&a!"),
@@ -27,10 +29,13 @@ public enum Message {
 
     DELET_WARZONE("&aSuccessfully deleted warzone &6%s&a!"),
 
-
     LOST_POKEMON("&aYou have lost your &6%s&a!"),
 
-    GAINED_POKEMON("&aYou have won your opponent's &6%s&a!");
+    GAINED_POKEMON("&aYou have won your opponent's &6%s&a!"),
+
+    // Proposal
+
+    END_BATTLE_PROPOSE("&aYou have received a request to end the battle. Use &e/warzone endbattle accept &c(YOU WILL NOT LOSE YOUR POKEMON!)"); // Use as raw & unformatted
 
     private final String message;
 
@@ -42,6 +47,10 @@ public enum Message {
         final String argumentedMessage = this.withArgs(this.message, args);
 
         return TextSerializers.FORMATTING_CODE.deserialize(argumentedMessage);
+    }
+
+    public String getRaw() {
+        return this.message;
     }
 
     private String withArgs(String message, final Object... args) {

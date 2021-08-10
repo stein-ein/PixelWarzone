@@ -6,7 +6,6 @@ import com.github.steinein.pixelwarzone.messages.Message;
 import com.pixelmonmod.pixelmon.api.pokemon.Pokemon;
 import com.pixelmonmod.pixelmon.battles.BattleRegistry;
 import com.pixelmonmod.pixelmon.battles.controller.BattleControllerBase;
-import com.pixelmonmod.pixelmon.battles.controller.participants.PlayerParticipant;
 import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraftforge.fml.common.eventhandler.EventPriority;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
@@ -26,24 +25,20 @@ public class PlayerQuit {
         if (warzonePlayer != null && warzonePlayer.inWarzone()) {
             if (BattleRegistry.getBattle(e.player) != null) {
                 BattleControllerBase bcb = BattleRegistry.getBattle(e.player);
-                PlayerParticipant winner = null;
-                if (bcb.getPlayers() == null) {
+                WarzonePlayer opponent = warzonePlayer.getBattleOpponent();
+                if (bcb.getPlayers() == null || opponent == null) {
                     return;
                 }
-                for (PlayerParticipant playerParticipant : bcb.getPlayers()) {
-                    if (!playerParticipant.player.getUniqueID().equals(e.player.getUniqueID())) {
-                        winner = playerParticipant;
-                    }
-                }
                 Pokemon pokemon = warzonePlayer.removePokemon(1);
-                if (winner != null) {
-                    WarzonePlayer winnerPlayer = WarzonePlayer.fromForge(plugin, winner.player);
-                    boolean success = winnerPlayer.givePokemon(pokemon);
-                    if (success) {
-                        winnerPlayer.sendMessage(Message.GAINED_POKEMON, pokemon.getDisplayName());
-                    } else {
-                        this.plugin.debug("Could not give pokemon to the winner. Check console output.");
-                    }
+                boolean success = opponent.givePokemon(pokemon);
+                if (success) {
+                    opponent.sendMessage(Message.GAINED_POKEMON, pokemon.getDisplayName());
+                    this.plugin.getLogger().info(
+                            "Gave " + opponent.getForgePlayer().getName() + " " + pokemon.getDisplayName() + " that "
+                                    + warzonePlayer.getForgePlayer().getName() + " lost."
+                    );
+                } else {
+                    this.plugin.getLogger().info("Could not give " + pokemon.getDisplayName() + " to the winner");
                 }
             }
 

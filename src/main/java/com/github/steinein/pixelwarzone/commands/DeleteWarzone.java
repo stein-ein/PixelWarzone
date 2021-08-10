@@ -12,7 +12,7 @@ import java.util.Optional;
 
 public class DeleteWarzone {
 
-    private CommandSpec spec;
+    private final CommandSpec spec;
 
     private static final Text NAME_ARG = Text.of("name");
 
