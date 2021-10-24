@@ -4,12 +4,14 @@ import com.github.steinein.pixelwarzone.PixelWarzone;
 import com.github.steinein.pixelwarzone.WarzonePlayer;
 import com.github.steinein.pixelwarzone.messages.Message;
 import com.google.common.collect.ImmutableMap;
+import com.pixelmonmod.pixelmon.Pixelmon;
 import com.pixelmonmod.pixelmon.api.events.battles.BattleEndEvent;
 import com.pixelmonmod.pixelmon.api.pokemon.Pokemon;
 import com.pixelmonmod.pixelmon.battles.controller.participants.BattleParticipant;
 import com.pixelmonmod.pixelmon.battles.controller.participants.PlayerParticipant;
 import com.pixelmonmod.pixelmon.enums.battle.BattleResults;
 import com.pixelmonmod.pixelmon.enums.battle.EnumBattleEndCause;
+import com.pixelmonmod.pixelmon.storage.PlayerPartyStorage;
 import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 
@@ -72,6 +74,10 @@ public class LoseTrainerBattleInWarzone {
 
         if (success) {
             winner.sendMessage(Message.GAINED_POKEMON, lostPoke.getDisplayName());
+            PlayerPartyStorage party = winner.getParty();
+            if (party != null) {
+                party.heal();
+            }
             this.plugin.getLogger().info(
                     "Gave " + winner.getForgePlayer().getName() + " " + lostPoke.getDisplayName() + " that "
                             + loser.getForgePlayer().getName() + " lost."

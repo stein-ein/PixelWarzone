@@ -14,6 +14,7 @@ public class WarzoneCommand {
 
         spec = CommandSpec.builder()
                 .description(Text.of("Basic command for PixelWarzone"))
+                .child(new WarpWarzone(plugin).getSpec(), "warp")
                 .child(new ListWarzones(plugin).getSpec(), "list", "l")
                 .child(new DefineWarzone(plugin).getSpec(), "define", "def", "new")
                 .child(new DeleteWarzone(plugin).getSpec(), "delete", "del")
