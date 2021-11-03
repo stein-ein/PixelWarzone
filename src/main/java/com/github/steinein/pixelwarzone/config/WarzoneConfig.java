@@ -37,6 +37,14 @@ public class WarzoneConfig {
         return Math.max(0, this.rootNode.getNode(ConfigOption.SETTINGS, ConfigOption.TURN_TIME).getInt());
     }
 
+    public int getMinWarpLevel() {
+        return Math.max(0, this.rootNode.getNode(ConfigOption.SETTINGS, ConfigOption.MIN_WARP_LEVEL).getInt());
+    }
+
+    public int getMaxWarpLevel() {
+        return Math.max(0, this.rootNode.getNode(ConfigOption.SETTINGS, ConfigOption.MAX_WARP_LEVEL).getInt());
+    }
+
     public Set<String> getWarzoneNames() {
 
         return this.rootNode.getNode(ConfigOption.WARZONE).getChildrenMap()

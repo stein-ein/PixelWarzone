@@ -34,7 +34,7 @@ public class EndBattle {
                     if (src instanceof Player) {
                         Player player = (Player) src;
                         WarzonePlayer warzonePlayer = WarzonePlayer.fromSponge(plugin, (Player) src);
-                        Optional<String> acceptOpt = args.<String>getOne("accept");
+                        Optional<String> acceptOpt = args.getOne("accept");
                         if (warzonePlayer.inWarzone()) {
 
                             if (!warzonePlayer.inBattle()) {

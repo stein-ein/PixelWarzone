@@ -4,14 +4,12 @@ import com.github.steinein.pixelwarzone.PixelWarzone;
 import com.github.steinein.pixelwarzone.WarzonePlayer;
 import com.pixelmonmod.pixelmon.Pixelmon;
 import com.pixelmonmod.pixelmon.api.events.PokeballImpactEvent;
+import com.pixelmonmod.pixelmon.api.pokemon.Pokemon;
 import com.pixelmonmod.pixelmon.battles.BattleRegistry;
 import com.pixelmonmod.pixelmon.battles.controller.participants.BattleParticipant;
 import com.pixelmonmod.pixelmon.battles.controller.participants.PlayerParticipant;
 import com.pixelmonmod.pixelmon.battles.rules.BattleRules;
-import com.pixelmonmod.pixelmon.battles.rules.clauses.BattleClause;
-import com.pixelmonmod.pixelmon.battles.rules.clauses.BattleClauseAll;
-import com.pixelmonmod.pixelmon.battles.rules.clauses.ItemPreventClause;
-import com.pixelmonmod.pixelmon.battles.rules.clauses.MoveClause;
+import com.pixelmonmod.pixelmon.battles.rules.clauses.*;
 import com.pixelmonmod.pixelmon.entities.pixelmon.EntityPixelmon;
 import com.pixelmonmod.pixelmon.enums.battle.EnumBattleType;
 import com.pixelmonmod.pixelmon.storage.PlayerPartyStorage;
@@ -74,8 +72,10 @@ public class PokeballImpact {
 
         BattleRules rules = new BattleRules(EnumBattleType.Single);
         rules.turnTime = 60;
+
         ArrayList<BattleClause> battleClauses = new ArrayList<>();
         battleClauses.add(new BattleClause("bag"));
+        battleClauses.add(new BattleClause("ohko"));
         rules.setNewClauses(battleClauses);
 
         BattleRegistry.startBattle(new BattleParticipant[]{playerParticipant1}, new BattleParticipant[]{playerParticipant2}, rules);
@@ -84,7 +84,7 @@ public class PokeballImpact {
     private boolean canBattle(EntityPlayerMP player) {
         PlayerPartyStorage party = Pixelmon.storageManager.getParty(player.getUniqueID());
         if (party != null && party.getTeam() != null && party.getTeam().size() > 1) {
-            return party.getTeam().stream().filter(pokemon -> pokemon.canBattle()).count() > 0;
+            return party.getTeam().stream().filter(Pokemon::canBattle).count() > 0;
         }
         return false;
     }

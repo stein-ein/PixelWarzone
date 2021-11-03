@@ -3,9 +3,7 @@ package com.github.steinein.pixelwarzone.commands;
 import com.github.steinein.pixelwarzone.PixelWarzone;
 import com.github.steinein.pixelwarzone.WarzonePermission;
 import com.github.steinein.pixelwarzone.WarzonePlayer;
-import com.pixelmonmod.pixelmon.config.PixelmonItems;
 import com.pixelmonmod.pixelmon.config.PixelmonItemsTools;
-import com.pixelmonmod.pixelmon.items.PixelmonItem;
 import net.minecraft.entity.player.InventoryPlayer;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
@@ -14,8 +12,6 @@ import org.spongepowered.api.command.CommandResult;
 import org.spongepowered.api.command.spec.CommandSpec;
 import org.spongepowered.api.data.key.Keys;
 import org.spongepowered.api.entity.living.player.Player;
-import org.spongepowered.api.item.ItemType;
-import org.spongepowered.api.item.ItemTypes;
 import org.spongepowered.api.text.Text;
 import org.spongepowered.api.text.serializer.TextSerializers;
 
@@ -50,20 +46,30 @@ public class WarpWarzone {
                     if (src instanceof Player) {
                         Player player = (Player) src;
                         WarzonePlayer warzonePlayer = WarzonePlayer.fromSponge(plugin, player);
+
                         if (warzonePlayer.getParty().getTeam().size() < 6) {
                             player.sendMessage(Text.of(TextSerializers.FORMATTING_CODE.deserialize("&cYou must have 6 Pokemon to warp to warzone.")));
                             return CommandResult.success();
                         }
 
-                        AtomicBoolean above100 = new AtomicBoolean(true);
-                        warzonePlayer.getParty().getTeam().forEach(pokemon -> {
-                            if (pokemon.getLevel() < 100) {
-                                above100.set(false);
-                            }
-                        });
+                        if (warzonePlayer.getParty().countAblePokemon() < warzonePlayer.getParty().getTeam().size()) {
+                            player.sendMessage(Text.of(TextSerializers.FORMATTING_CODE.deserialize("&cYou can't enter warzone with fainted Pokemon!")));
+                            return CommandResult.success();
+                        }
 
-                        if (!above100.get()) {
-                            player.sendMessage(Text.of(TextSerializers.FORMATTING_CODE.deserialize("&cAll of your pokemon must be level 100 to warp to warzone.")));
+                        int minLvl = plugin.getPluginConfig().getMinWarpLevel();
+                        int maxLvl = plugin.getPluginConfig().getMaxWarpLevel();
+                        boolean rangeSatisfied =
+                                warzonePlayer.getParty().getTeam().stream().allMatch(
+                                        p -> (p.getLevel() >= minLvl) && (p.getLevel() <= maxLvl)
+                                );
+
+                        if (!rangeSatisfied) {
+                            player.sendMessage(
+                                    Text.of(TextSerializers.FORMATTING_CODE.deserialize(
+                                            "&cAll of your pokemon must be in level range of " + minLvl + " - " + maxLvl + " to warp to warzone.")
+                                    )
+                            );
                             return CommandResult.success();
                         }
 

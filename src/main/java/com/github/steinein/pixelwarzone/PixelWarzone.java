@@ -9,8 +9,6 @@ import com.google.inject.Inject;
 import com.pixelmonmod.pixelmon.Pixelmon;
 import net.minecraftforge.common.MinecraftForge;
 import ninja.leaping.configurate.hocon.HoconConfigurationLoader;
-import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
 import org.slf4j.Logger;
 import org.spongepowered.api.Game;
 import org.spongepowered.api.Sponge;
@@ -56,7 +54,7 @@ public class PixelWarzone {
     private SelectionsManager selectionsManager;
     private List<DefinedWarzone> warzoneList;
 
-    public final Map<UUID, UUID> requestMap = new HashMap<UUID, UUID>();
+    public final Map<UUID, UUID> requestMap = new HashMap<>();
 
     public static PixelWarzone getInstance() {
         return instance;
@@ -85,10 +83,6 @@ public class PixelWarzone {
 
         }
         logger.info("Plugin configuration successfully loaded.");
-
-        if (this.pluginConfig.isDebugEnabled()) {
-            ((org.apache.logging.log4j.core.Logger) LogManager.getLogger(this.logger.getName())).setLevel(Level.DEBUG);
-        }
 
         this.selectionsManager = new SelectionsManager();
 
