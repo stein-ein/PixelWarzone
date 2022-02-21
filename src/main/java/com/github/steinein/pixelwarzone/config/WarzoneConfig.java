@@ -45,6 +45,10 @@ public class WarzoneConfig {
         return Math.max(0, this.rootNode.getNode(ConfigOption.SETTINGS, ConfigOption.MAX_WARP_LEVEL).getInt());
     }
 
+    public boolean getDisableHA() {
+        return this.rootNode.getNode(ConfigOption.SETTINGS, ConfigOption.DISABLE_HA).getBoolean();
+    }
+
     public Set<String> getWarzoneNames() {
 
         return this.rootNode.getNode(ConfigOption.WARZONE).getChildrenMap()

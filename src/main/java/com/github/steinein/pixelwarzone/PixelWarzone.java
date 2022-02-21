@@ -16,6 +16,7 @@ import org.spongepowered.api.asset.Asset;
 import org.spongepowered.api.config.ConfigDir;
 import org.spongepowered.api.entity.living.player.Player;
 import org.spongepowered.api.event.Listener;
+import org.spongepowered.api.event.game.GameReloadEvent;
 import org.spongepowered.api.event.game.state.GameInitializationEvent;
 import org.spongepowered.api.plugin.Plugin;
 import org.spongepowered.api.scheduler.Task;
@@ -97,6 +98,30 @@ public class PixelWarzone {
         this.registerEvents();
 
         this.warzoneBossbar();
+    }
+
+    @Listener
+    public void onReload(GameReloadEvent reloadEvent) {
+        logger.info("Loading plugin configuration...");
+        HoconConfigurationLoader loader = this.loadConfig();
+
+        if (loader == null) {
+            this.logger.error("Something went wrong during configuration load. Stopping plugin!");
+            return;
+        }
+
+        try {
+            this.pluginConfig = new WarzoneConfig(loader);
+        } catch (IOException e) {
+            this.logger.error("Something went wrong during config parsing!");
+            e.printStackTrace();
+            return;
+        }
+        logger.info("Plugin configuration successfully loaded.");
+
+        logger.info("Loading defined warzones...");
+        this.warzoneList = this.pluginConfig.getWarzones();
+        logger.info("Loaded " + this.warzoneList.size() + " warzones.");
     }
 
     private void warzoneBossbar() {
