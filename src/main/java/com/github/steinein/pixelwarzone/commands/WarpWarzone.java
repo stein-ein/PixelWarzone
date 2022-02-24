@@ -3,6 +3,7 @@ package com.github.steinein.pixelwarzone.commands;
 import com.github.steinein.pixelwarzone.PixelWarzone;
 import com.github.steinein.pixelwarzone.WarzonePermission;
 import com.github.steinein.pixelwarzone.WarzonePlayer;
+import com.pixelmonmod.pixelmon.api.pokemon.Pokemon;
 import com.pixelmonmod.pixelmon.config.PixelmonItemsTools;
 import net.minecraft.entity.player.InventoryPlayer;
 import net.minecraft.item.Item;
@@ -12,6 +13,7 @@ import org.spongepowered.api.command.CommandResult;
 import org.spongepowered.api.command.spec.CommandSpec;
 import org.spongepowered.api.data.key.Keys;
 import org.spongepowered.api.entity.living.player.Player;
+import org.spongepowered.api.item.ItemType;
 import org.spongepowered.api.text.Text;
 import org.spongepowered.api.text.serializer.TextSerializers;
 
@@ -73,10 +75,25 @@ public class WarpWarzone {
                             return CommandResult.success();
                         }
 
+                        boolean allNotHA =
+                                warzonePlayer.getParty().getTeam().stream().allMatch(
+                                        p -> (!isHiddenAbility(p))
+                                );
+
+                        if (plugin.getPluginConfig().getDisableHA() && !allNotHA) {
+                            player.sendMessage(
+                                    Text.of(TextSerializers.FORMATTING_CODE.deserialize(
+                                            "&cYou cannot have any HA pokemon in your party.")
+                                    )
+                            );
+                            return CommandResult.success();
+                        }
+
                         AtomicBoolean hasDuskItem = new AtomicBoolean(false);
-                        InventoryPlayer inventory = warzonePlayer.getForgePlayer().inventory;
+
                         duskItems.forEach(item -> {
-                            if (inventory.hasItemStack(new ItemStack(item))) {
+                            player.getInventory().contains((ItemType) item);
+                            if (player.getInventory().contains((ItemType) item)) {
                                 hasDuskItem.set(true);
                             }
                         });
@@ -98,6 +115,12 @@ public class WarpWarzone {
 
     public CommandSpec getSpec() {
         return this.spec;
+    }
+
+    public boolean isHiddenAbility(Pokemon pokemon) {
+        return pokemon.getBaseStats().getHiddenAbility()
+                .map(ha -> ha.equals(pokemon.getAbility()))
+                .orElse(false);
     }
 
 }
