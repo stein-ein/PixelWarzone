@@ -19,6 +19,8 @@ public class WarzoneCommand {
                 .child(new DefineWarzone(plugin).getSpec(), "define", "def", "new")
                 .child(new DeleteWarzone(plugin).getSpec(), "delete", "del")
                 .child(new EndBattle(plugin).getSpec(), "endbattle")
+                .child(new WarzoneTopCommand(plugin).getSpec(), "top")
+                .child(new WarzoneStats(plugin).getSpec(), "stats")
                 .child(setPos.getSpecPosFirst(), "pos1", "first")
                 .child(setPos.getSpecPosSecond(), "pos2", "second")
                 .build();

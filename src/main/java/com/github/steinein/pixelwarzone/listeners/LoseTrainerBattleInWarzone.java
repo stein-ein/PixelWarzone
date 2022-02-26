@@ -74,6 +74,12 @@ public class LoseTrainerBattleInWarzone {
 
         if (success) {
             winner.sendMessage(Message.GAINED_POKEMON, lostPoke.getDisplayName());
+
+            final WarzonePlayer dbWinner = plugin.playerDataMap.get(winner.getSpongePlayer().getUniqueId());
+            final WarzonePlayer dbLoser = plugin.playerDataMap.get(loser.getSpongePlayer().getUniqueId());
+            dbWinner.setWins(dbWinner.getWins() + 1);
+            dbLoser.setLosses(dbLoser.getLosses() + 1);
+
             PlayerPartyStorage party = winner.getParty();
             if (party != null) {
                 party.heal();

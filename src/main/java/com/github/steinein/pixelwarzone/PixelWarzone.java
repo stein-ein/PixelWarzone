@@ -2,6 +2,7 @@ package com.github.steinein.pixelwarzone;
 
 import com.github.steinein.pixelwarzone.commands.WarzoneCommand;
 import com.github.steinein.pixelwarzone.config.WarzoneConfig;
+import com.github.steinein.pixelwarzone.db_handler.DBHandler;
 import com.github.steinein.pixelwarzone.listeners.*;
 import com.github.steinein.pixelwarzone.selection.DefinedWarzone;
 import com.github.steinein.pixelwarzone.selection.SelectionsManager;
@@ -20,9 +21,13 @@ import org.spongepowered.api.event.game.GameReloadEvent;
 import org.spongepowered.api.event.game.state.GameInitializationEvent;
 import org.spongepowered.api.plugin.Plugin;
 import org.spongepowered.api.scheduler.Task;
+import org.spongepowered.api.service.sql.SqlService;
 
+import javax.sql.DataSource;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.sql.Connection;
+import java.sql.SQLException;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 
@@ -55,10 +60,29 @@ public class PixelWarzone {
     private SelectionsManager selectionsManager;
     private List<DefinedWarzone> warzoneList;
 
+    public final Map<UUID, WarzonePlayer> playerDataMap = new HashMap<UUID, WarzonePlayer>();
     public final Map<UUID, UUID> requestMap = new HashMap<>();
 
     public static PixelWarzone getInstance() {
         return instance;
+    }
+
+    private String dbPath;
+    private DataSource dataSource;
+
+    private static DBHandler database;
+
+    public static DBHandler getDatabase() {
+        return database;
+    }
+
+    public Connection getConnection() {
+        try {
+            return this.dataSource.getConnection();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return null;
     }
 
     @Listener
@@ -66,6 +90,7 @@ public class PixelWarzone {
         instance = this;
         logger.info("Loading plugin configuration...");
         HoconConfigurationLoader loader = this.loadConfig();
+        database = new DBHandler();
 
         if (loader == null) {
             this.logger.error("Something went wrong during configuration load. Stopping plugin!");
@@ -73,17 +98,21 @@ public class PixelWarzone {
         }
 
         try {
-
             this.pluginConfig = new WarzoneConfig(loader);
-
         } catch (IOException e) {
-
             this.logger.error("Something went wrong during config parsing! Stopping plugin!");
             e.printStackTrace();
             return;
-
         }
         logger.info("Plugin configuration successfully loaded.");
+
+        try {
+            this.dbPath = String.format("jdbc:h2:%s/players.db;mode=MySQL", PixelWarzone.getInstance().configDirPath);
+            this.dataSource = Sponge.getServiceManager().provide(SqlService.class).get().getDataSource(dbPath);
+            database.createTables();
+        } catch (Exception e) {
+            logger.error("Error loading database " + e.getMessage());
+        }
 
         this.selectionsManager = new SelectionsManager();
 
@@ -184,6 +213,7 @@ public class PixelWarzone {
         Pixelmon.EVENT_BUS.register(new StartBattle(this));
         MinecraftForge.EVENT_BUS.register(new PlayerQuit(this));
         game.getEventManager().registerListeners(this, new PlayerCommand(this));
+        game.getEventManager().registerListeners(this, new PlayerConnectionEvents());
     }
 
     public void debug(String message, Object... args) {
