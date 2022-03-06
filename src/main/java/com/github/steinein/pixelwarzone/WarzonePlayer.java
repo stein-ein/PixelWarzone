@@ -9,6 +9,7 @@ import com.pixelmonmod.pixelmon.battles.controller.participants.PlayerParticipan
 import com.pixelmonmod.pixelmon.storage.PlayerPartyStorage;
 import net.minecraft.entity.player.EntityPlayerMP;
 import org.spongepowered.api.entity.living.player.Player;
+import org.spongepowered.api.entity.living.player.User;
 import org.spongepowered.api.text.Text;
 import org.spongepowered.api.world.Location;
 import org.spongepowered.api.world.World;
@@ -29,6 +30,10 @@ public class WarzonePlayer {
 
     private final EntityPlayerMP forgePlayer;
     private final Location<World> location;
+    private User user;
+
+    private int wins;
+    private int losses;
 
     private WarzonePlayer(final PixelWarzone plugin, final EntityPlayerMP forgePlayer) {
         this.plugin = plugin;
@@ -44,12 +49,48 @@ public class WarzonePlayer {
         this.forgePlayer = (EntityPlayerMP) spongePlayer;
     }
 
+    private WarzonePlayer(final PixelWarzone plugin, final User user) {
+        this.plugin = plugin;
+        this.user = user;
+        this.forgePlayer = null;
+        this.spongePlayer = null;
+        this.location = null;
+    }
+
+    public int getWins() {
+        return wins;
+    }
+
+    public int getLosses() {
+        return losses;
+    }
+
+    public void setWins(int wins) {
+        this.wins = wins;
+    }
+
+    public void setLosses(int losses) {
+        this.losses = losses;
+    }
+
+    public Player getSpongePlayer() {
+        return this.spongePlayer;
+    }
+
+    public User getUser() {
+        return this.user;
+    }
+
     public static WarzonePlayer fromForge(final PixelWarzone plugin, final EntityPlayerMP player) {
         return new WarzonePlayer(plugin, player);
     }
 
     public static WarzonePlayer fromSponge(final PixelWarzone plugin, final Player player) {
         return new WarzonePlayer(plugin, player);
+    }
+
+    public static WarzonePlayer fromUser(final PixelWarzone plugin, final User user) {
+        return new WarzonePlayer(plugin, user);
     }
 
     public boolean inWarzone() {
@@ -86,7 +127,6 @@ public class WarzonePlayer {
     }
 
     public Pokemon removePokemon(final int howMany) {
-
         final PlayerPartyStorage party = this.getParty();
         final int partySize = party.getTeam().size();
         if (partySize <= howMany) {
