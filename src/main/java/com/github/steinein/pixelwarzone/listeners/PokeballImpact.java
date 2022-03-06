@@ -2,6 +2,7 @@ package com.github.steinein.pixelwarzone.listeners;
 
 import com.github.steinein.pixelwarzone.PixelWarzone;
 import com.github.steinein.pixelwarzone.WarzonePlayer;
+import com.github.steinein.pixelwarzone.utils.Utils;
 import com.pixelmonmod.pixelmon.Pixelmon;
 import com.pixelmonmod.pixelmon.api.events.PokeballImpactEvent;
 import com.pixelmonmod.pixelmon.api.pokemon.Pokemon;
@@ -37,10 +38,12 @@ public class PokeballImpact {
             EntityPixelmon pixelmon = (EntityPixelmon) event.getEntityHit();
             if (pixelmon.getOwnerId() != null) {
                 EntityPlayerMP entityPlayerMP = (EntityPlayerMP) event.pokeball.getThrower();
+
                 Optional<Player> optionalPlayer = Sponge.getServer().getPlayer(pixelmon.getOwnerId());
                 if (!optionalPlayer.isPresent()) {
                     return;
                 }
+
                 EntityPlayerMP challengedPlayer = FMLServerHandler.instance().getServer().getPlayerList().getPlayerByUUID(pixelmon.getOwnerId());
                 startBattle(challengedPlayer, entityPlayerMP);
             }
@@ -65,6 +68,15 @@ public class PokeballImpact {
         if (!canBattle(challengedPlayer) || !canBattle(entityPlayerMP)) {
             return;
         }
+
+        if (!Utils.checkWarzonePlayer(plugin, (Player) entityPlayerMP, player1)) {
+            return;
+        }
+
+        if (!Utils.checkWarzonePlayer(plugin, (Player) challengedPlayer, player2)) {
+            return;
+        }
+
         EntityPixelmon poke1 = Pixelmon.storageManager.getParty(entityPlayerMP.getUniqueID()).getTeam().get(0).getOrSpawnPixelmon((Entity) entityPlayerMP);
         PlayerParticipant playerParticipant1 = new PlayerParticipant(entityPlayerMP, poke1);
         EntityPixelmon poke2 = Pixelmon.storageManager.getParty(challengedPlayer.getUniqueID()).getTeam().get(0).getOrSpawnPixelmon((Entity) challengedPlayer);

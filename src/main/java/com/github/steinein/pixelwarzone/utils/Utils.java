@@ -1,9 +1,34 @@
 package com.github.steinein.pixelwarzone.utils;
 
+import com.github.steinein.pixelwarzone.PixelWarzone;
+import com.github.steinein.pixelwarzone.WarzonePlayer;
+import com.pixelmonmod.pixelmon.api.pokemon.Pokemon;
+import com.pixelmonmod.pixelmon.config.PixelmonItemsTools;
+import net.minecraft.item.Item;
+import org.spongepowered.api.command.CommandResult;
+import org.spongepowered.api.entity.living.player.Player;
+import org.spongepowered.api.item.ItemType;
 import org.spongepowered.api.text.Text;
 import org.spongepowered.api.text.serializer.TextSerializers;
 
+import java.util.Arrays;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
+
 public class Utils {
+    private static final List<Item> duskItems = Arrays.asList(
+            PixelmonItemsTools.duskstoneHelm,
+            PixelmonItemsTools.duskstoneAxeItem,
+            PixelmonItemsTools.duskstoneBoots,
+            PixelmonItemsTools.duskstoneHammerItem,
+            PixelmonItemsTools.duskstoneHoeItem,
+            PixelmonItemsTools.duskstoneLegs,
+            PixelmonItemsTools.duskstonePickaxeItem,
+            PixelmonItemsTools.duskstonePlate,
+            PixelmonItemsTools.duskstoneShovelItem,
+            PixelmonItemsTools.duskstoneSwordItem
+    );
+
     public static Text toText(final String str) {
         if (str == null) {
             return (Text) Text.of("");
@@ -20,5 +45,86 @@ public class Utils {
 
     public static String formatDouble(final double ratio) {
         return String.format("%.2f", ratio) + "%";
+    }
+
+    public static boolean isHiddenAbility(Pokemon pokemon) {
+        return pokemon.getBaseStats().getHiddenAbility()
+                .map(ha -> ha.equals(pokemon.getAbility()))
+                .orElse(false);
+    }
+
+    public static boolean checkWarzonePlayer(
+            final PixelWarzone plugin,
+            final Player player,
+            final WarzonePlayer warzonePlayer
+    ) {
+        if (warzonePlayer.getParty().getTeam().size() < 6) {
+            player.sendMessage(Text.of(TextSerializers.FORMATTING_CODE.deserialize("&cYou must have 6 Pokemon to warp to warzone.")));
+            return false;
+        }
+
+        if (warzonePlayer.getParty().countAblePokemon() < warzonePlayer.getParty().getTeam().size()) {
+            player.sendMessage(Text.of(TextSerializers.FORMATTING_CODE.deserialize("&cYou can't enter warzone with fainted Pokemon!")));
+            return false;
+        }
+
+        int minLvl = plugin.getPluginConfig().getMinWarpLevel();
+        int maxLvl = plugin.getPluginConfig().getMaxWarpLevel();
+        boolean rangeSatisfied =
+                warzonePlayer.getParty().getTeam().stream().allMatch(
+                        p -> (p.getLevel() >= minLvl) && (p.getLevel() <= maxLvl)
+                );
+
+        if (!rangeSatisfied) {
+            player.sendMessage(
+                    Text.of(TextSerializers.FORMATTING_CODE.deserialize(
+                            "&cAll of your pokemon must be in level range of " + minLvl + " - " + maxLvl + " to warp to warzone.")
+                    )
+            );
+            return false;
+        }
+
+        boolean allNotHA =
+                warzonePlayer.getParty().getTeam().stream().allMatch(
+                        p -> (!isHiddenAbility(p))
+                );
+
+        if (plugin.getPluginConfig().getDisableHA() && !allNotHA) {
+            player.sendMessage(
+                    Text.of(TextSerializers.FORMATTING_CODE.deserialize(
+                            "&cYou cannot have any HA pokemon in your party.")
+                    )
+            );
+            return false;
+        }
+
+        boolean hasUntradeable = warzonePlayer.getParty().getTeam().stream().anyMatch(
+                p -> (p.hasSpecFlag("untradeable"))
+        );
+
+        if (hasUntradeable) {
+            player.sendMessage(
+                    Text.of(TextSerializers.FORMATTING_CODE.deserialize(
+                            "&cYou cannot enter the warzone with untradeable Pokemon.")
+                    )
+            );
+            return false;
+        }
+
+        AtomicBoolean hasDuskItem = new AtomicBoolean(false);
+
+        duskItems.forEach(item -> {
+            player.getInventory().contains((ItemType) item);
+            if (player.getInventory().contains((ItemType) item)) {
+                hasDuskItem.set(true);
+            }
+        });
+
+        if (hasDuskItem.get()) {
+            player.sendMessage(Text.of(TextSerializers.FORMATTING_CODE.deserialize("&cYou cannot have any dusk items in your inventory.")));
+            return false;
+        }
+
+        return true;
     }
 }
