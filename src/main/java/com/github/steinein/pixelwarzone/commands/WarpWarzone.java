@@ -3,6 +3,7 @@ package com.github.steinein.pixelwarzone.commands;
 import com.github.steinein.pixelwarzone.PixelWarzone;
 import com.github.steinein.pixelwarzone.WarzonePermission;
 import com.github.steinein.pixelwarzone.WarzonePlayer;
+import com.github.steinein.pixelwarzone.utils.Utils;
 import com.pixelmonmod.pixelmon.api.pokemon.Pokemon;
 import com.pixelmonmod.pixelmon.config.PixelmonItemsTools;
 import net.minecraft.entity.player.InventoryPlayer;
@@ -23,20 +24,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class WarpWarzone {
-
     private final CommandSpec spec;
-    private final List<Item> duskItems = Arrays.asList(
-            PixelmonItemsTools.duskstoneHelm,
-            PixelmonItemsTools.duskstoneAxeItem,
-            PixelmonItemsTools.duskstoneBoots,
-            PixelmonItemsTools.duskstoneHammerItem,
-            PixelmonItemsTools.duskstoneHoeItem,
-            PixelmonItemsTools.duskstoneLegs,
-            PixelmonItemsTools.duskstonePickaxeItem,
-            PixelmonItemsTools.duskstonePlate,
-            PixelmonItemsTools.duskstoneShovelItem,
-            PixelmonItemsTools.duskstoneSwordItem
-    );
 
     public WarpWarzone(final PixelWarzone plugin) {
 
@@ -44,67 +32,18 @@ public class WarpWarzone {
                 .description(Text.of("Warps to warzone."))
                 .permission(WarzonePermission.WARP_WARZONE)
                 .executor((src, args) -> {
-
                     if (src instanceof Player) {
                         Player player = (Player) src;
                         WarzonePlayer warzonePlayer = WarzonePlayer.fromSponge(plugin, player);
 
-                        if (warzonePlayer.getParty().getTeam().size() < 6) {
-                            player.sendMessage(Text.of(TextSerializers.FORMATTING_CODE.deserialize("&cYou must have 6 Pokemon to warp to warzone.")));
+                        if (warzonePlayer == null) {
                             return CommandResult.success();
                         }
 
-                        if (warzonePlayer.getParty().countAblePokemon() < warzonePlayer.getParty().getTeam().size()) {
-                            player.sendMessage(Text.of(TextSerializers.FORMATTING_CODE.deserialize("&cYou can't enter warzone with fainted Pokemon!")));
-                            return CommandResult.success();
+                        if (Utils.checkWarzonePlayer(plugin, player, warzonePlayer)) {
+                            player.offer(Keys.POTION_EFFECTS, Collections.emptyList());
+                            Sponge.getCommandManager().process(player, "warzonerandomrtp");
                         }
-
-                        int minLvl = plugin.getPluginConfig().getMinWarpLevel();
-                        int maxLvl = plugin.getPluginConfig().getMaxWarpLevel();
-                        boolean rangeSatisfied =
-                                warzonePlayer.getParty().getTeam().stream().allMatch(
-                                        p -> (p.getLevel() >= minLvl) && (p.getLevel() <= maxLvl)
-                                );
-
-                        if (!rangeSatisfied) {
-                            player.sendMessage(
-                                    Text.of(TextSerializers.FORMATTING_CODE.deserialize(
-                                            "&cAll of your pokemon must be in level range of " + minLvl + " - " + maxLvl + " to warp to warzone.")
-                                    )
-                            );
-                            return CommandResult.success();
-                        }
-
-                        boolean allNotHA =
-                                warzonePlayer.getParty().getTeam().stream().allMatch(
-                                        p -> (!isHiddenAbility(p))
-                                );
-
-                        if (plugin.getPluginConfig().getDisableHA() && !allNotHA) {
-                            player.sendMessage(
-                                    Text.of(TextSerializers.FORMATTING_CODE.deserialize(
-                                            "&cYou cannot have any HA pokemon in your party.")
-                                    )
-                            );
-                            return CommandResult.success();
-                        }
-
-                        AtomicBoolean hasDuskItem = new AtomicBoolean(false);
-
-                        duskItems.forEach(item -> {
-                            player.getInventory().contains((ItemType) item);
-                            if (player.getInventory().contains((ItemType) item)) {
-                                hasDuskItem.set(true);
-                            }
-                        });
-
-                        if (hasDuskItem.get()) {
-                            player.sendMessage(Text.of(TextSerializers.FORMATTING_CODE.deserialize("&cYou cannot have any dusk items in your inventory.")));
-                            return CommandResult.success();
-                        }
-
-                        player.offer(Keys.POTION_EFFECTS, Collections.emptyList());
-                        Sponge.getCommandManager().process(player, "warzonerandomrtp");
                     }
 
                     return CommandResult.success();
@@ -116,11 +55,4 @@ public class WarpWarzone {
     public CommandSpec getSpec() {
         return this.spec;
     }
-
-    public boolean isHiddenAbility(Pokemon pokemon) {
-        return pokemon.getBaseStats().getHiddenAbility()
-                .map(ha -> ha.equals(pokemon.getAbility()))
-                .orElse(false);
-    }
-
 }
