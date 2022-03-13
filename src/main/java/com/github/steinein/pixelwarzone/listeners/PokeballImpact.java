@@ -70,10 +70,21 @@ public class PokeballImpact {
         }
 
         if (!Utils.checkWarzonePlayer(plugin, (Player) entityPlayerMP, player1)) {
+            Player player = (Player) entityPlayerMP;
+            Sponge.getCommandManager().process(player, "warp warzone");
             return;
         }
 
         if (!Utils.checkWarzonePlayer(plugin, (Player) challengedPlayer, player2)) {
+            Player player = (Player) challengedPlayer;
+            Sponge.getCommandManager().process(player, "warp warzone");
+            ((Player) entityPlayerMP).sendMessage(
+                    Utils.toText(
+                            plugin.getPluginConfig().getPrefix() +
+                                    "&cYour opponent does not meet the requirements to be in the Warzone!"
+                    )
+            );
+
             return;
         }
 

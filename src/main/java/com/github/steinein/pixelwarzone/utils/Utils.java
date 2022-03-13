@@ -59,12 +59,16 @@ public class Utils {
             final WarzonePlayer warzonePlayer
     ) {
         if (warzonePlayer.getParty().getTeam().size() < 6) {
-            player.sendMessage(Text.of(TextSerializers.FORMATTING_CODE.deserialize("&cYou must have 6 Pokemon to warp to warzone.")));
+            player.sendMessage(
+                    Utils.toText(plugin.getPluginConfig().getPrefix() + "&cYou must have 6 Pokemon to warp to warzone.")
+            );
             return false;
         }
 
         if (warzonePlayer.getParty().countAblePokemon() < warzonePlayer.getParty().getTeam().size()) {
-            player.sendMessage(Text.of(TextSerializers.FORMATTING_CODE.deserialize("&cYou can't enter warzone with fainted Pokemon!")));
+            player.sendMessage(
+                    Utils.toText(plugin.getPluginConfig().getPrefix() + "&cYou can't enter warzone with fainted Pokemon!")
+            );
             return false;
         }
 
@@ -77,9 +81,11 @@ public class Utils {
 
         if (!rangeSatisfied) {
             player.sendMessage(
-                    Text.of(TextSerializers.FORMATTING_CODE.deserialize(
-                            "&cAll of your pokemon must be in level range of " + minLvl + " - " + maxLvl + " to warp to warzone.")
+                    Utils.toText(
+                            plugin.getPluginConfig().getPrefix() +
+                                    "&cAll of your pokemon must be in level range of " + minLvl + " - " + maxLvl + " to warp to warzone."
                     )
+
             );
             return false;
         }
@@ -91,8 +97,8 @@ public class Utils {
 
         if (plugin.getPluginConfig().getDisableHA() && !allNotHA) {
             player.sendMessage(
-                    Text.of(TextSerializers.FORMATTING_CODE.deserialize(
-                            "&cYou cannot have any HA pokemon in your party.")
+                    Utils.toText(
+                            plugin.getPluginConfig().getPrefix() + "&cYou cannot have any HA pokemon in your party."
                     )
             );
             return false;
@@ -104,9 +110,10 @@ public class Utils {
 
         if (hasUntradeable) {
             player.sendMessage(
-                    Text.of(TextSerializers.FORMATTING_CODE.deserialize(
-                            "&cYou cannot enter the warzone with untradeable Pokemon.")
+                    Utils.toText(
+                            plugin.getPluginConfig().getPrefix() + "&cYou cannot enter the warzone with untradeable Pokemon."
                     )
+
             );
             return false;
         }
@@ -121,7 +128,9 @@ public class Utils {
         });
 
         if (hasDuskItem.get()) {
-            player.sendMessage(Text.of(TextSerializers.FORMATTING_CODE.deserialize("&cYou cannot have any dusk items in your inventory.")));
+            player.sendMessage(
+                    Utils.toText(plugin.getPluginConfig().getPrefix() + "&cYou cannot have any dusk items in your inventory.")
+            );
             return false;
         }
 

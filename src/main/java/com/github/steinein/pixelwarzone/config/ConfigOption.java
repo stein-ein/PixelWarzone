@@ -9,6 +9,7 @@ public final class ConfigOption {
     public static final String MIN_WARP_LEVEL =     "minWarpLevel";
     public static final String MAX_WARP_LEVEL =     "maxWarpLevel";
     public static final String DISABLE_HA     =     "disableHA";
+    public static final String PREFIX         =     "prefix";
     public static final String WARZONE        =      "warzone";
 
 }
