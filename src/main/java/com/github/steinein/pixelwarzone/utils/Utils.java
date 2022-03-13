@@ -5,7 +5,9 @@ import com.github.steinein.pixelwarzone.WarzonePlayer;
 import com.pixelmonmod.pixelmon.api.pokemon.Pokemon;
 import com.pixelmonmod.pixelmon.config.PixelmonItemsTools;
 import net.minecraft.item.Item;
-import org.spongepowered.api.command.CommandResult;
+import org.spongepowered.api.data.key.Keys;
+import org.spongepowered.api.effect.potion.PotionEffect;
+import org.spongepowered.api.effect.potion.PotionEffectTypes;
 import org.spongepowered.api.entity.living.player.Player;
 import org.spongepowered.api.item.ItemType;
 import org.spongepowered.api.text.Text;
@@ -13,6 +15,7 @@ import org.spongepowered.api.text.serializer.TextSerializers;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class Utils {
@@ -123,6 +126,27 @@ public class Utils {
         if (hasDuskItem.get()) {
             player.sendMessage(Text.of(TextSerializers.FORMATTING_CODE.deserialize("&cYou cannot have any dusk items in your inventory.")));
             return false;
+        }
+
+        Optional<List<PotionEffect>> potionData = player.get(Keys.POTION_EFFECTS);
+        if (potionData.isPresent()) {
+
+            AtomicBoolean hasInvisEffect = new AtomicBoolean(false);
+
+            potionData.get().forEach(effect -> {
+                if (effect.getType() == PotionEffectTypes.INVISIBILITY) {
+                    hasInvisEffect.set(true);
+                }
+            });
+
+            if (hasInvisEffect.get()) {
+                player.sendMessage(
+                        Text.of(TextSerializers.FORMATTING_CODE.deserialize(
+                                "&cYou cannot enter Warzone while invisible!")
+                        )
+                );
+                return false;
+            }
         }
 
         return true;
