@@ -49,6 +49,10 @@ public class WarzoneConfig {
         return this.rootNode.getNode(ConfigOption.SETTINGS, ConfigOption.DISABLE_HA).getBoolean();
     }
 
+    public String getPrefix() {
+        return this.rootNode.getNode(ConfigOption.SETTINGS, ConfigOption.PREFIX).getString();
+    }
+
     public Set<String> getWarzoneNames() {
 
         return this.rootNode.getNode(ConfigOption.WARZONE).getChildrenMap()

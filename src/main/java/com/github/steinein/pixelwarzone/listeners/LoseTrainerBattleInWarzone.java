@@ -14,6 +14,8 @@ import com.pixelmonmod.pixelmon.enums.battle.EnumBattleEndCause;
 import com.pixelmonmod.pixelmon.storage.PlayerPartyStorage;
 import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
+import org.spongepowered.api.Sponge;
+import org.spongepowered.api.entity.living.player.Player;
 
 import java.util.List;
 import java.util.Map;
@@ -79,6 +81,8 @@ public class LoseTrainerBattleInWarzone {
             final WarzonePlayer dbLoser = plugin.playerDataMap.get(loser.getSpongePlayer().getUniqueId());
             dbWinner.setWins(dbWinner.getWins() + 1);
             dbLoser.setLosses(dbLoser.getLosses() + 1);
+
+            Sponge.getCommandManager().process(loser.getSpongePlayer(), "warp warzone");
 
             PlayerPartyStorage party = winner.getParty();
             if (party != null) {
