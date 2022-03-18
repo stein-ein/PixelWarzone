@@ -25,6 +25,10 @@ public class WarzoneConfig {
         return this.rootNode.getNode(ConfigOption.SETTINGS, ConfigOption.DEBUG).getBoolean();
     }
 
+    public boolean showGUILeaderboard() {
+        return this.rootNode.getNode(ConfigOption.SETTINGS, ConfigOption.SHOW_GUI_LEADERBOARD).getBoolean();
+    }
+
     public int losePokemon() {
         // Should probably just throw errors instead of playing LISP
         // TODO: Care about it later
