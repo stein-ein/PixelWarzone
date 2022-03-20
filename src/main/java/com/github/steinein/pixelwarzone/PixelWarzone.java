@@ -20,6 +20,7 @@ import org.spongepowered.api.event.Listener;
 import org.spongepowered.api.event.game.GameReloadEvent;
 import org.spongepowered.api.event.game.state.GameInitializationEvent;
 import org.spongepowered.api.plugin.Plugin;
+import org.spongepowered.api.plugin.PluginContainer;
 import org.spongepowered.api.scheduler.Task;
 import org.spongepowered.api.service.sql.SqlService;
 
@@ -54,6 +55,9 @@ public class PixelWarzone {
     @Inject
     @ConfigDir(sharedRoot = false)
     private Path configDirPath;
+
+    @Inject
+    private PluginContainer container;
 
     private WarzoneConfig pluginConfig;
 
@@ -244,5 +248,9 @@ public class PixelWarzone {
 
     public List<DefinedWarzone> getWarzoneList() {
         return this.warzoneList;
+    }
+
+    public PluginContainer getContainer() {
+        return container;
     }
 }

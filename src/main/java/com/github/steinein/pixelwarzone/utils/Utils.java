@@ -13,6 +13,7 @@ import org.spongepowered.api.item.ItemType;
 import org.spongepowered.api.text.Text;
 import org.spongepowered.api.text.serializer.TextSerializers;
 
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
@@ -39,7 +40,7 @@ public class Utils {
         return TextSerializers.FORMATTING_CODE.deserialize(str);
     }
 
-    public static double ratio(final int wins, final int losses) {
+    public static double ratio(final double wins, final double losses) {
         if ((wins + losses) == 0) {
             return 0.0;
         }
@@ -54,6 +55,19 @@ public class Utils {
         return pokemon.getBaseStats().getHiddenAbility()
                 .map(ha -> ha.equals(pokemon.getAbility()))
                 .orElse(false);
+    }
+
+    public static String formatDuration(Duration duration) {
+        long seconds = duration.getSeconds();
+        if (seconds > 86400) {
+            return (int) Math.floor(seconds / 86400) + " day(s)";
+        } else if (seconds > 3600) {
+            return (int) Math.floor(seconds / 3600) + " hour(s)";
+        } else if (seconds > 60) {
+            return (int) Math.floor(seconds / 60) + " minute(s)";
+        } else {
+            return (int) seconds + " seconds";
+        }
     }
 
     public static boolean checkWarzonePlayer(

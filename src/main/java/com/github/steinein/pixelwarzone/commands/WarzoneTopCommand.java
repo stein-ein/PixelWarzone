@@ -4,6 +4,7 @@ import com.github.steinein.pixelwarzone.PixelWarzone;
 import com.github.steinein.pixelwarzone.WarzonePermission;
 import com.github.steinein.pixelwarzone.WarzonePlayer;
 import com.github.steinein.pixelwarzone.messages.Message;
+import com.github.steinein.pixelwarzone.ui.Leaderboard;
 import com.github.steinein.pixelwarzone.utils.Utils;
 import org.spongepowered.api.Sponge;
 import org.spongepowered.api.command.CommandException;
@@ -12,6 +13,7 @@ import org.spongepowered.api.command.CommandSource;
 import org.spongepowered.api.command.args.CommandContext;
 import org.spongepowered.api.command.spec.CommandExecutor;
 import org.spongepowered.api.command.spec.CommandSpec;
+import org.spongepowered.api.entity.living.player.Player;
 import org.spongepowered.api.entity.living.player.User;
 import org.spongepowered.api.scheduler.Task;
 import org.spongepowered.api.service.user.UserStorageService;
@@ -37,14 +39,18 @@ public class WarzoneTopCommand {
 
     public CommandResult execute(CommandSource src, CommandContext args, final PixelWarzone plugin) throws CommandException {
         if (src != null) {
-            Task.builder().execute(() -> {
-                List<WarzonePlayer> playerList = plugin.getDatabase().getTopPlayers();
-                Optional<UserStorageService> userStorage = Sponge.getServiceManager().provide(UserStorageService.class);
-                if (playerList != null && userStorage.isPresent()) {
-                    src.sendMessage(Utils.toText("&7&l=== &4&lWarzone Leaderboard &7&l==="));
-                    showPlayers(src, playerList, userStorage.get());
-                }
-            }).async().submit(plugin);
+            if (src instanceof Player && plugin.getPluginConfig().showGUILeaderboard()) {
+                Leaderboard.openMenu((Player) src);
+            } else {
+                Task.builder().execute(() -> {
+                    List<WarzonePlayer> playerList = plugin.getDatabase().getTopPlayers();
+                    Optional<UserStorageService> userStorage = Sponge.getServiceManager().provide(UserStorageService.class);
+                    if (playerList != null && userStorage.isPresent()) {
+                        src.sendMessage(Utils.toText("&7&l=== &4&lWarzone Leaderboard &7&l==="));
+                        showPlayers(src, playerList, userStorage.get());
+                    }
+                }).async().submit(plugin);
+            }
         }
         return CommandResult.success();
     }
