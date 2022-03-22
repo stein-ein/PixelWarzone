@@ -6,6 +6,7 @@ import com.github.steinein.pixelwarzone.db_handler.DBHandler;
 import com.github.steinein.pixelwarzone.listeners.*;
 import com.github.steinein.pixelwarzone.selection.DefinedWarzone;
 import com.github.steinein.pixelwarzone.selection.SelectionsManager;
+import com.github.steinein.pixelwarzone.utils.Utils;
 import com.google.inject.Inject;
 import com.pixelmonmod.pixelmon.Pixelmon;
 import net.minecraftforge.common.MinecraftForge;
@@ -131,6 +132,7 @@ public class PixelWarzone {
         this.registerEvents();
 
         this.warzoneBossbar();
+        this.kickUnwelcomePlayers();
     }
 
     @Listener
@@ -174,6 +176,21 @@ public class PixelWarzone {
         }).interval(3, TimeUnit.MINUTES).name("Warzone bossbar").submit(this);
     }
 
+    private void kickUnwelcomePlayers() {
+        Task task = Task.builder().execute(() -> {
+            for (Player player : Sponge.getServer().getOnlinePlayers()) {
+                WarzonePlayer warzonePlayer = WarzonePlayer.fromSponge(this, player);
+                if (warzonePlayer.inWarzone() && !Utils.checkWarzonePlayer(this, player, warzonePlayer)) {
+                    if (warzonePlayer.inBattle()) {
+                        warzonePlayer.getBattle().endBattle();
+                    }
+                    Sponge.getCommandManager().process(player, "warp warzone");
+                    return;
+                }
+            }
+        }).interval(20, TimeUnit.SECONDS).name("Kick Unwelcome Players").submit(this);
+    }
+
     private HoconConfigurationLoader loadConfig() {
 
         Optional<Asset> configAsset = Sponge.getAssetManager().getAsset(this, CONFIG);
@@ -215,6 +232,7 @@ public class PixelWarzone {
         Pixelmon.EVENT_BUS.register(new LoseNPCBattle(this));
         Pixelmon.EVENT_BUS.register(new PokeballImpact(this));
         Pixelmon.EVENT_BUS.register(new StartBattle(this));
+        Pixelmon.EVENT_BUS.register(new RaidDenEvents(this));
         MinecraftForge.EVENT_BUS.register(new PlayerQuit(this));
         game.getEventManager().registerListeners(this, new PlayerCommand(this));
         game.getEventManager().registerListeners(this, new PlayerConnectionEvents());

@@ -33,4 +33,10 @@ public class DefinedWarzone {
 
     }
 
+    public boolean hasLocation(final String world, final int locX, final int locZ) {
+        final boolean withinXBound = (locX <= this.selection.greaterX()) && (locX >= this.selection.lesserX());
+        final boolean withinZBound = (locZ <= this.selection.greaterZ()) && (locZ >= this.selection.lesserZ());
+
+        return withinXBound && withinZBound && selection.getWorld() != null && selection.getWorld().equals(world);
+    }
 }
