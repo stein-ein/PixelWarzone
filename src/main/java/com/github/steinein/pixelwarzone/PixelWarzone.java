@@ -16,6 +16,9 @@ import org.spongepowered.api.Game;
 import org.spongepowered.api.Sponge;
 import org.spongepowered.api.asset.Asset;
 import org.spongepowered.api.config.ConfigDir;
+import org.spongepowered.api.data.key.Keys;
+import org.spongepowered.api.effect.potion.PotionEffect;
+import org.spongepowered.api.effect.potion.PotionEffectTypes;
 import org.spongepowered.api.entity.living.player.Player;
 import org.spongepowered.api.event.Listener;
 import org.spongepowered.api.event.game.GameReloadEvent;
@@ -184,7 +187,11 @@ public class PixelWarzone {
                     if (warzonePlayer.inBattle()) {
                         warzonePlayer.getBattle().endBattle();
                     }
+                    logger.info(player.getName() + " was kicked out of the warzone");
                     Sponge.getCommandManager().process(player, "warp warzone");
+                    player.offer(Keys.POTION_EFFECTS,
+                            Collections.singletonList(PotionEffect.of(PotionEffectTypes.BLINDNESS, 1, 200))
+                    );
                     return;
                 }
             }

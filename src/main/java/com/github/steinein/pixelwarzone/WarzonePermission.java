@@ -12,5 +12,5 @@ public class WarzonePermission {
     public final static String WARZONE_STATS = COMMAND + "stats";
 
     public final static String WARZONE_EXCLUDE = "pixelwarzone.exclude";
-
+    public final static String WARZONE_FLIGHT_EXEMPT = "pixelwarzone.flightexempt";
 }
