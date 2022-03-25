@@ -183,10 +183,7 @@ public class PixelWarzone {
         Task task = Task.builder().execute(() -> {
             for (Player player : Sponge.getServer().getOnlinePlayers()) {
                 WarzonePlayer warzonePlayer = WarzonePlayer.fromSponge(this, player);
-                if (warzonePlayer.inWarzone() && !Utils.checkWarzonePlayer(this, player, warzonePlayer)) {
-                    if (warzonePlayer.inBattle()) {
-                        warzonePlayer.getBattle().endBattle();
-                    }
+                if (warzonePlayer.inWarzone() && !warzonePlayer.inBattle() && !Utils.checkWarzonePlayer(this, player, warzonePlayer)) {
                     logger.info(player.getName() + " was kicked out of the warzone");
                     Sponge.getCommandManager().process(player, "warp warzone");
                     player.offer(Keys.POTION_EFFECTS,
