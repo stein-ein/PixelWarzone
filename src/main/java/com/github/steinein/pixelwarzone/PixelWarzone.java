@@ -185,14 +185,17 @@ public class PixelWarzone {
                 WarzonePlayer warzonePlayer = WarzonePlayer.fromSponge(this, player);
                 if (warzonePlayer.inWarzone() && !warzonePlayer.inBattle() && !Utils.checkWarzonePlayer(this, player, warzonePlayer)) {
                     logger.info(player.getName() + " was kicked out of the warzone");
-                    Sponge.getCommandManager().process(player, "warp warzone");
-                    player.offer(Keys.POTION_EFFECTS,
+                    Task.builder().execute(
+                            () -> Sponge.getCommandManager().process(player, "warp warzone")
+                    ).submit(this);
+                    player.offer(
+                            Keys.POTION_EFFECTS,
                             Collections.singletonList(PotionEffect.of(PotionEffectTypes.BLINDNESS, 1, 200))
                     );
                     return;
                 }
             }
-        }).interval(20, TimeUnit.SECONDS).name("Kick Unwelcome Players").submit(this);
+        }).interval(20, TimeUnit.SECONDS).name("Kick Unwelcome Players").async().submit(this);
     }
 
     private HoconConfigurationLoader loadConfig() {
