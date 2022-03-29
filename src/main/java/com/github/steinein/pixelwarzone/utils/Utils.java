@@ -1,6 +1,7 @@
 package com.github.steinein.pixelwarzone.utils;
 
 import com.github.steinein.pixelwarzone.PixelWarzone;
+import com.github.steinein.pixelwarzone.WarzonePermission;
 import com.github.steinein.pixelwarzone.WarzonePlayer;
 import com.pixelmonmod.pixelmon.api.pokemon.Pokemon;
 import com.pixelmonmod.pixelmon.config.PixelmonItemsTools;
@@ -86,6 +87,11 @@ public class Utils {
             player.sendMessage(
                     Utils.toText(plugin.getPluginConfig().getPrefix() + "&cYou can't enter warzone with fainted Pokemon!")
             );
+            return false;
+        }
+
+        if (!player.hasPermission(WarzonePermission.WARZONE_FLIGHT_EXEMPT) && player.get(Keys.IS_FLYING).get()) {
+            player.sendMessage(Utils.toText(plugin.getPluginConfig().getPrefix() + " &cFlying is not allowed."));
             return false;
         }
 

@@ -12,5 +12,6 @@ public final class ConfigOption {
     public static final String PREFIX                =     "prefix";
     public static final String WARZONE               =      "warzone";
     public static final String SHOW_GUI_LEADERBOARD  =      "showGUILeaderboard";
+    public static final String BROADCAST_DEN         =      "broadcastDen";
 
 }

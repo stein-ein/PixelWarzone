@@ -6,6 +6,7 @@ import com.github.steinein.pixelwarzone.db_handler.DBHandler;
 import com.github.steinein.pixelwarzone.listeners.*;
 import com.github.steinein.pixelwarzone.selection.DefinedWarzone;
 import com.github.steinein.pixelwarzone.selection.SelectionsManager;
+import com.github.steinein.pixelwarzone.utils.Utils;
 import com.google.inject.Inject;
 import com.pixelmonmod.pixelmon.Pixelmon;
 import net.minecraftforge.common.MinecraftForge;
@@ -15,6 +16,9 @@ import org.spongepowered.api.Game;
 import org.spongepowered.api.Sponge;
 import org.spongepowered.api.asset.Asset;
 import org.spongepowered.api.config.ConfigDir;
+import org.spongepowered.api.data.key.Keys;
+import org.spongepowered.api.effect.potion.PotionEffect;
+import org.spongepowered.api.effect.potion.PotionEffectTypes;
 import org.spongepowered.api.entity.living.player.Player;
 import org.spongepowered.api.event.Listener;
 import org.spongepowered.api.event.game.GameReloadEvent;
@@ -131,6 +135,7 @@ public class PixelWarzone {
         this.registerEvents();
 
         this.warzoneBossbar();
+        this.kickUnwelcomePlayers();
     }
 
     @Listener
@@ -174,6 +179,25 @@ public class PixelWarzone {
         }).interval(3, TimeUnit.MINUTES).name("Warzone bossbar").submit(this);
     }
 
+    private void kickUnwelcomePlayers() {
+        Task task = Task.builder().execute(() -> {
+            for (Player player : Sponge.getServer().getOnlinePlayers()) {
+                WarzonePlayer warzonePlayer = WarzonePlayer.fromSponge(this, player);
+                if (warzonePlayer.inWarzone() && !warzonePlayer.inBattle() && !Utils.checkWarzonePlayer(this, player, warzonePlayer)) {
+                    logger.info(player.getName() + " was kicked out of the warzone");
+                    Task.builder().execute(
+                            () -> Sponge.getCommandManager().process(player, "warp warzone")
+                    ).submit(this);
+                    player.offer(
+                            Keys.POTION_EFFECTS,
+                            Collections.singletonList(PotionEffect.of(PotionEffectTypes.BLINDNESS, 1, 200))
+                    );
+                    return;
+                }
+            }
+        }).interval(20, TimeUnit.SECONDS).name("Kick Unwelcome Players").async().submit(this);
+    }
+
     private HoconConfigurationLoader loadConfig() {
 
         Optional<Asset> configAsset = Sponge.getAssetManager().getAsset(this, CONFIG);
@@ -215,6 +239,7 @@ public class PixelWarzone {
         Pixelmon.EVENT_BUS.register(new LoseNPCBattle(this));
         Pixelmon.EVENT_BUS.register(new PokeballImpact(this));
         Pixelmon.EVENT_BUS.register(new StartBattle(this));
+        Pixelmon.EVENT_BUS.register(new RaidDenEvents(this));
         MinecraftForge.EVENT_BUS.register(new PlayerQuit(this));
         game.getEventManager().registerListeners(this, new PlayerCommand(this));
         game.getEventManager().registerListeners(this, new PlayerConnectionEvents());

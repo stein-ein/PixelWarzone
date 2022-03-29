@@ -4,6 +4,7 @@ import com.github.steinein.pixelwarzone.PixelWarzone;
 import com.github.steinein.pixelwarzone.WarzonePermission;
 import com.github.steinein.pixelwarzone.WarzonePlayer;
 import com.github.steinein.pixelwarzone.messages.Message;
+import com.github.steinein.pixelwarzone.utils.Utils;
 import com.pixelmonmod.pixelmon.battles.BattleRegistry;
 import com.pixelmonmod.pixelmon.battles.controller.BattleControllerBase;
 import com.pixelmonmod.pixelmon.enums.battle.EnumBattleEndCause;
@@ -46,7 +47,14 @@ public class EndBattle {
 
                             if (acceptOpt.isPresent() && acceptOpt.get().equalsIgnoreCase("accept")) {
                                 if (plugin.requestMap.get(player.getUniqueId()) != null) {
-                                    warzonePlayer.sendMessage(Text.of("Ending the battle!"));
+                                    bcb.getPlayers().forEach(playerParticipant -> {
+                                        if (playerParticipant.party != null) {
+                                            playerParticipant.party.heal();
+                                        }
+                                        ((Player) playerParticipant.player).sendMessage(
+                                                Utils.toText(plugin.getPluginConfig().getPrefix() + "Ending the battle!")
+                                        );
+                                    });
                                     bcb.endBattle(EnumBattleEndCause.FLEE);
                                     plugin.requestMap.remove(player.getUniqueId());
                                 } else {
@@ -74,7 +82,6 @@ public class EndBattle {
                     }
 
                     return CommandResult.success();
-
                 })
                 .build();
 
@@ -84,8 +91,6 @@ public class EndBattle {
 
         Text endBattleRequest = TextSerializers.FORMATTING_CODE.deserialize(Message.END_BATTLE_PROPOSE.getRaw())
                 .toBuilder()
-                .onHover(TextActions.showText(Text.of(TextColors.WHITE, "Click to end the battle!")))
-                .onClick(TextActions.runCommand("/endbattle " + opponent.getForgePlayer().getName()))
                 .build();
 
         opponent.sendMessage(endBattleRequest);
