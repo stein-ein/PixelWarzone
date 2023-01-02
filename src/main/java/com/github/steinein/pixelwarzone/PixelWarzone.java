@@ -40,7 +40,7 @@ import java.util.concurrent.TimeUnit;
         id = "pixelwarzone",
         name = "PixelWarzone",
         description = "Pikachu goes to gulag.",
-        version = "1.12.2-1.0.0",
+        version = "1.12.2-1.1.0",
         authors = {
                 "Steinein_"
         }
@@ -186,7 +186,7 @@ public class PixelWarzone {
                 if (warzonePlayer.inWarzone() && !warzonePlayer.inBattle() && !Utils.checkWarzonePlayer(this, player, warzonePlayer)) {
                     logger.info(player.getName() + " was kicked out of the warzone");
                     Task.builder().execute(
-                            () -> Sponge.getCommandManager().process(player, "warp warzone")
+                            () -> Sponge.getCommandManager().process(Sponge.getServer().getConsole(), "warp " + player.getName() + " warzone")
                     ).submit(this);
                     player.offer(
                             Keys.POTION_EFFECTS,

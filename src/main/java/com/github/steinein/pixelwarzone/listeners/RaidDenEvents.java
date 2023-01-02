@@ -27,6 +27,7 @@ public class RaidDenEvents {
                     .anyMatch(warzone -> warzone.hasLocation(world, locX, locZ));
 
             if (inWarzone) {
+                startRaidEvent.getRaidPixelmon().setDead();
                 Sponge.getServer().getBroadcastChannel().send(Utils.toText(
                         PixelWarzone.getInstance().getPluginConfig().getPrefix() +
                                 "A raid den has started!"

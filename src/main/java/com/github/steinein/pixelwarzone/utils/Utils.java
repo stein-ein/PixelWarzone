@@ -5,6 +5,7 @@ import com.github.steinein.pixelwarzone.WarzonePermission;
 import com.github.steinein.pixelwarzone.WarzonePlayer;
 import com.pixelmonmod.pixelmon.api.pokemon.Pokemon;
 import com.pixelmonmod.pixelmon.config.PixelmonItemsTools;
+import com.pixelmonmod.pixelmon.config.PixelmonItemsPokeballs;
 import net.minecraft.item.Item;
 import org.spongepowered.api.data.key.Keys;
 import org.spongepowered.api.effect.potion.PotionEffect;
@@ -32,6 +33,11 @@ public class Utils {
             PixelmonItemsTools.duskstonePlate,
             PixelmonItemsTools.duskstoneShovelItem,
             PixelmonItemsTools.duskstoneSwordItem
+    );
+
+    private static final List<Item> ballItems = Arrays.asList(
+            PixelmonItemsPokeballs.masterBall,
+            PixelmonItemsPokeballs.parkBall
     );
 
     public static Text toText(final String str) {
@@ -153,6 +159,22 @@ public class Utils {
         if (hasDuskItem.get()) {
             player.sendMessage(
                     Utils.toText(plugin.getPluginConfig().getPrefix() + "&cYou cannot have any dusk items in your inventory.")
+            );
+            return false;
+        }
+
+        AtomicBoolean hasBallItem = new AtomicBoolean(false);
+
+        ballItems.forEach(item -> {
+            player.getInventory().contains((ItemType) item);
+            if (player.getInventory().contains((ItemType) item)) {
+                hasBallItem.set(true);
+            }
+        });
+
+        if (hasBallItem.get()) {
+            player.sendMessage(
+                    Utils.toText(plugin.getPluginConfig().getPrefix() + "&cYou cannot have master ball or park ball in your inventory.")
             );
             return false;
         }
