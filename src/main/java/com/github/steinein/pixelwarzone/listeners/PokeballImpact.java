@@ -2,26 +2,20 @@ package com.github.steinein.pixelwarzone.listeners;
 
 import com.github.steinein.pixelwarzone.PixelWarzone;
 import com.github.steinein.pixelwarzone.WarzonePlayer;
+import com.github.steinein.pixelwarzone.messages.Message;
 import com.github.steinein.pixelwarzone.utils.Utils;
-import com.pixelmonmod.pixelmon.Pixelmon;
-import com.pixelmonmod.pixelmon.api.events.PokeballImpactEvent;
+import com.pixelmonmod.pixelmon.api.events.PokeBallImpactEvent;
 import com.pixelmonmod.pixelmon.api.pokemon.Pokemon;
+import com.pixelmonmod.pixelmon.api.storage.PlayerPartyStorage;
+import com.pixelmonmod.pixelmon.api.storage.StorageProxy;
 import com.pixelmonmod.pixelmon.battles.BattleRegistry;
-import com.pixelmonmod.pixelmon.battles.controller.participants.BattleParticipant;
+import com.pixelmonmod.pixelmon.battles.api.BattleBuilder;
 import com.pixelmonmod.pixelmon.battles.controller.participants.PlayerParticipant;
-import com.pixelmonmod.pixelmon.battles.rules.BattleRules;
-import com.pixelmonmod.pixelmon.battles.rules.clauses.*;
-import com.pixelmonmod.pixelmon.entities.pixelmon.EntityPixelmon;
-import com.pixelmonmod.pixelmon.enums.battle.EnumBattleType;
-import com.pixelmonmod.pixelmon.storage.PlayerPartyStorage;
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.player.EntityPlayerMP;
-import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
-import net.minecraftforge.fml.server.FMLServerHandler;
-import org.spongepowered.api.Sponge;
-import org.spongepowered.api.entity.living.player.Player;
+import com.pixelmonmod.pixelmon.entities.pixelmon.PixelmonEntity;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.Entity;
+import net.neoforged.bus.api.SubscribeEvent;
 
-import java.util.ArrayList;
 import java.util.Optional;
 
 public class PokeballImpact {
@@ -33,82 +27,59 @@ public class PokeballImpact {
     }
 
     @SubscribeEvent
-    public void pokeballImpactEvent(PokeballImpactEvent event) {
-        if (event.getEntityHit() instanceof EntityPixelmon && event.pokeball.getThrower() instanceof EntityPlayerMP) {
-            EntityPixelmon pixelmon = (EntityPixelmon) event.getEntityHit();
-            if (pixelmon.getOwnerId() != null) {
-                EntityPlayerMP entityPlayerMP = (EntityPlayerMP) event.pokeball.getThrower();
+    public void onPokeballImpact(PokeBallImpactEvent event) {
+        Optional<Entity> hitOpt = event.getEntityHit();
+        if (hitOpt.isEmpty()) return;
+        Entity hit = hitOpt.get();
 
-                Optional<Player> optionalPlayer = Sponge.getServer().getPlayer(pixelmon.getOwnerId());
-                if (!optionalPlayer.isPresent()) {
-                    return;
-                }
+        Entity thrower = event.getPokeBall().getOwner();
+        if (!(thrower instanceof ServerPlayer challenger)) return;
 
-                EntityPlayerMP challengedPlayer = FMLServerHandler.instance().getServer().getPlayerList().getPlayerByUUID(pixelmon.getOwnerId());
-                startBattle(challengedPlayer, entityPlayerMP);
-            }
-        } else if (event.getEntityHit() instanceof EntityPlayerMP && event.pokeball.getThrower() instanceof EntityPlayerMP) {
-            EntityPlayerMP challenger = (EntityPlayerMP) event.pokeball.getThrower();
-            EntityPlayerMP challenged = (EntityPlayerMP) event.getEntityHit();
-            if (challenger != null && challenged != null) {
-                startBattle(challenged, challenger);
-            }
+        if (hit instanceof PixelmonEntity pixelmon) {
+            // Pokeball hit a wild/owned Pixelmon — start PvP if it's owned by another player
+            if (!(pixelmon.getOwner() instanceof ServerPlayer owner)) return;
+            startBattle(challenger, owner);
+        } else if (hit instanceof ServerPlayer challenged) {
+            startBattle(challenger, challenged);
         }
     }
 
-    private void startBattle(EntityPlayerMP challengedPlayer, EntityPlayerMP entityPlayerMP) {
-        if (BattleRegistry.getBattle(challengedPlayer) != null || challengedPlayer.getUniqueID().equals(entityPlayerMP.getUniqueID())) {
-            return;
-        }
-        WarzonePlayer player1 = WarzonePlayer.fromForge(plugin, entityPlayerMP);
-        WarzonePlayer player2 = WarzonePlayer.fromForge(plugin, challengedPlayer);
-        if (!player1.inWarzone() || !player2.inWarzone()) {
-            return;
-        }
-        if (!canBattle(challengedPlayer) || !canBattle(entityPlayerMP)) {
-            return;
-        }
+    private void startBattle(ServerPlayer challenger, ServerPlayer challenged) {
+        if (challenger.getUUID().equals(challenged.getUUID())) return;
+        if (BattleRegistry.inBattle(challenged) || BattleRegistry.inBattle(challenger)) return;
 
-        if (!Utils.checkWarzonePlayer(plugin, (Player) entityPlayerMP, player1)) {
-            Player player = (Player) entityPlayerMP;
-            Sponge.getCommandManager().process(player, "warp warzone");
+        WarzonePlayer wp1 = new WarzonePlayer(plugin, challenger);
+        WarzonePlayer wp2 = new WarzonePlayer(plugin, challenged);
+
+        if (!wp1.inWarzone() || !wp2.inWarzone()) return;
+        if (!canBattle(challenger) || !canBattle(challenged)) return;
+
+        if (!Utils.checkWarzonePlayer(plugin, challenger, wp1)) {
+            challenger.getServer().getCommands().performPrefixedCommand(
+                    challenger.createCommandSourceStack(), "warp warzone");
             return;
         }
 
-        if (!Utils.checkWarzonePlayer(plugin, (Player) challengedPlayer, player2)) {
-            Player player = (Player) challengedPlayer;
-            Sponge.getCommandManager().process(player, "warp warzone");
-            ((Player) entityPlayerMP).sendMessage(
-                    Utils.toText(
-                            plugin.getPluginConfig().getPrefix() +
-                                    "&cYour opponent does not meet the requirements to be in the Warzone!"
-                    )
-            );
-
+        if (!Utils.checkWarzonePlayer(plugin, challenged, wp2)) {
+            challenged.getServer().getCommands().performPrefixedCommand(
+                    challenged.createCommandSourceStack(), "warp warzone");
+            challenger.sendSystemMessage(Message.parseColors(
+                    plugin.getPluginConfig().getPrefix() + "&cYour opponent does not meet the requirements!"));
             return;
         }
 
-        EntityPixelmon poke1 = Pixelmon.storageManager.getParty(entityPlayerMP.getUniqueID()).getTeam().get(0).getOrSpawnPixelmon((Entity) entityPlayerMP);
-        PlayerParticipant playerParticipant1 = new PlayerParticipant(entityPlayerMP, poke1);
-        EntityPixelmon poke2 = Pixelmon.storageManager.getParty(challengedPlayer.getUniqueID()).getTeam().get(0).getOrSpawnPixelmon((Entity) challengedPlayer);
-        PlayerParticipant playerParticipant2 = new PlayerParticipant(challengedPlayer, poke2);
+        PlayerParticipant p1 = new PlayerParticipant(challenger);
+        PlayerParticipant p2 = new PlayerParticipant(challenged);
 
-        BattleRules rules = new BattleRules(EnumBattleType.Single);
-        rules.turnTime = 60;
-
-        ArrayList<BattleClause> battleClauses = new ArrayList<>();
-        battleClauses.add(new BattleClause("bag"));
-        battleClauses.add(new BattleClause("ohko"));
-        rules.setNewClauses(battleClauses);
-
-        BattleRegistry.startBattle(new BattleParticipant[]{playerParticipant1}, new BattleParticipant[]{playerParticipant2}, rules);
+        BattleBuilder.builder()
+                .teamOne(p1)
+                .teamTwo(p2)
+                .start(challenger.level().registryAccess());
     }
 
-    private boolean canBattle(EntityPlayerMP player) {
-        PlayerPartyStorage party = Pixelmon.storageManager.getParty(player.getUniqueID());
-        if (party != null && party.getTeam() != null && party.getTeam().size() > 1) {
-            return party.getTeam().stream().filter(Pokemon::canBattle).count() > 0;
-        }
-        return false;
+    private boolean canBattle(ServerPlayer player) {
+        PlayerPartyStorage party = StorageProxy.getPartyNow(player);
+        if (party == null || party.getTeam().isEmpty()) return false;
+        return party.getTeam().stream().filter(Pokemon::canBattle).count() > 0;
     }
 }

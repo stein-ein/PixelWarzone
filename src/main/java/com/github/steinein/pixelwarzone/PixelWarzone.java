@@ -6,276 +6,401 @@ import com.github.steinein.pixelwarzone.db_handler.DBHandler;
 import com.github.steinein.pixelwarzone.listeners.*;
 import com.github.steinein.pixelwarzone.selection.DefinedWarzone;
 import com.github.steinein.pixelwarzone.selection.SelectionsManager;
-import com.github.steinein.pixelwarzone.utils.Utils;
-import com.google.inject.Inject;
-import com.pixelmonmod.pixelmon.Pixelmon;
-import net.minecraftforge.common.MinecraftForge;
-import ninja.leaping.configurate.hocon.HoconConfigurationLoader;
+import net.minecraft.network.chat.Component;
+import net.minecraft.server.level.ServerBossEvent;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.BossEvent;
+import net.neoforged.bus.api.IEventBus;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.ModLoadingContext;
+import net.neoforged.fml.common.Mod;
+import net.neoforged.fml.loading.FMLPaths;
+import net.neoforged.neoforge.common.NeoForge;
+import net.neoforged.neoforge.event.RegisterCommandsEvent;
+import net.neoforged.neoforge.event.server.ServerStartingEvent;
+import net.neoforged.neoforge.event.server.ServerStoppingEvent;
+import net.neoforged.neoforge.event.tick.ServerTickEvent;
 import org.slf4j.Logger;
-import org.spongepowered.api.Game;
-import org.spongepowered.api.Sponge;
-import org.spongepowered.api.asset.Asset;
-import org.spongepowered.api.config.ConfigDir;
-import org.spongepowered.api.data.key.Keys;
-import org.spongepowered.api.effect.potion.PotionEffect;
-import org.spongepowered.api.effect.potion.PotionEffectTypes;
-import org.spongepowered.api.entity.living.player.Player;
-import org.spongepowered.api.event.Listener;
-import org.spongepowered.api.event.game.GameReloadEvent;
-import org.spongepowered.api.event.game.state.GameInitializationEvent;
-import org.spongepowered.api.plugin.Plugin;
-import org.spongepowered.api.plugin.PluginContainer;
-import org.spongepowered.api.scheduler.Task;
-import org.spongepowered.api.service.sql.SqlService;
+import org.slf4j.LoggerFactory;
 
-import javax.sql.DataSource;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
-import java.sql.Connection;
-import java.sql.SQLException;
-import java.util.*;
-import java.util.concurrent.TimeUnit;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 
-@Plugin(
-        id = "pixelwarzone",
-        name = "PixelWarzone",
-        description = "Pikachu goes to gulag.",
-        version = "1.12.2-1.1.0",
-        authors = {
-                "Steinein_"
-        }
-)
+@Mod("pixelwarzone")
 public class PixelWarzone {
 
-    private static final String CONFIG = "pixelwarzone.conf";
+    public static final String MOD_ID = "pixelwarzone";
+    private static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
+
     private static PixelWarzone instance;
 
-    @Inject
-    private Logger logger;
-
-    @Inject
-    public Game game;
-
-    @Inject
-    @ConfigDir(sharedRoot = false)
-    private Path configDirPath;
-
-    @Inject
-    private PluginContainer container;
-
     private WarzoneConfig pluginConfig;
-
     private SelectionsManager selectionsManager;
     private List<DefinedWarzone> warzoneList;
+    private DBHandler database;
 
-    public final Map<UUID, WarzonePlayer> playerDataMap = new HashMap<UUID, WarzonePlayer>();
+    public final Map<UUID, WarzonePlayer> playerDataMap = new HashMap<>();
     public final Map<UUID, UUID> requestMap = new HashMap<>();
+
+    // Tick counters for periodic tasks
+    private int bossbarTickCounter = 0;
+    private int kickTickCounter = 0;
+    private int guiFixTickCounter = 0;
+    private int autoAcceptTickCounter = 0;
+    private int teamSelectTickCounter = 0;
+    private int bossbarInterval   = 20 * 60 * 3; // updated from config on start/reload
+    private int bossbarHideTimer  = 0;            // ticks remaining before hiding the bossbar
+    private static final int KICK_INTERVAL = 20 * 20;        // 20 seconds
+    private static final int GUI_FIX_INTERVAL = 20 * 3;      // 3 seconds
+    private static final int AUTO_ACCEPT_INTERVAL = 10;      // every 10 ticks (0.5s)
+    private static final int TEAM_SELECT_INTERVAL = 5;       // every 5 ticks (0.25s)
 
     public static PixelWarzone getInstance() {
         return instance;
     }
 
-    private String dbPath;
-    private DataSource dataSource;
+    private final ServerBossEvent warzoneBossBar = new ServerBossEvent(
+            Component.literal("§4§lWarzone §r§7- §ePlayers inside: §f0"),
+            BossEvent.BossBarColor.RED,
+            BossEvent.BossBarOverlay.NOTCHED_10);
 
-    private static DBHandler database;
+    private boolean pixelListenersRegistered = false;
 
-    public static DBHandler getDatabase() {
-        return database;
-    }
-
-    public Connection getConnection() {
-        try {
-            return this.dataSource.getConnection();
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-        return null;
-    }
-
-    @Listener
-    public void onServerInit(GameInitializationEvent event) {
+    public PixelWarzone(IEventBus modEventBus) {
         instance = this;
-        logger.info("Loading plugin configuration...");
-        HoconConfigurationLoader loader = this.loadConfig();
-        database = new DBHandler();
+        // NeoForge events (ServerStartingEvent, ServerTickEvent, CommandEvent, etc.)
+        NeoForge.EVENT_BUS.register(this);
+        NeoForge.EVENT_BUS.register(new PlayerQuit(this));
+        NeoForge.EVENT_BUS.register(new PlayerCommand(this));
+        NeoForge.EVENT_BUS.register(new PlayerConnectionEvents(this));
+        // Pixelmon event listeners are registered in onServerStarting() to ensure
+        // Pixelmon is fully loaded before we touch its EVENT_BUS.
+    }
 
-        if (loader == null) {
-            this.logger.error("Something went wrong during configuration load. Stopping plugin!");
-            return;
+    @SubscribeEvent
+    public void onServerStarting(ServerStartingEvent event) {
+        LOGGER.info("PixelWarzone starting...");
+
+        // Register Pixelmon event listeners here (not in constructor) so that
+        // Pixelmon's EVENT_BUS is guaranteed to be initialized first.
+        if (!pixelListenersRegistered) {
+            pixelListenersRegistered = true;
+            var pixelBus = com.pixelmonmod.pixelmon.Pixelmon.EVENT_BUS;
+            LOGGER.info("Registering Pixelmon listeners on bus: {}",
+                    pixelBus == null ? "NULL" : pixelBus.getClass().getName());
+            if (pixelBus != null) {
+                var loseTrainer = new LoseTrainerBattleInWarzone(this);
+                var pokeball    = new PokeballImpact(this);
+                var startBattle = new StartBattle(this);
+                var raidDen     = new RaidDenEvents(this);
+                var loseNpc     = new LoseNPCBattle(this);
+                pixelBus.addListener(loseTrainer::loseBattle);
+                pixelBus.addListener(pokeball::onPokeballImpact);
+                pixelBus.addListener(startBattle::startBattle);
+                pixelBus.addListener(raidDen::onStartRaid);
+                pixelBus.addListener(loseNpc::loseNPCBattle);
+                LOGGER.info("Pixelmon listeners registered successfully.");
+            } else {
+                LOGGER.error("Pixelmon EVENT_BUS is null — Pixelmon events will not fire!");
+            }
         }
 
+        Path configDir = FMLPaths.CONFIGDIR.get().resolve("pixelwarzone");
         try {
-            this.pluginConfig = new WarzoneConfig(loader);
+            Files.createDirectories(configDir);
+            this.pluginConfig = new WarzoneConfig(configDir);
         } catch (IOException e) {
-            this.logger.error("Something went wrong during config parsing! Stopping plugin!");
-            e.printStackTrace();
+            LOGGER.error("Failed to load config: {}", e.getMessage());
             return;
         }
-        logger.info("Plugin configuration successfully loaded.");
 
-        try {
-            this.dbPath = String.format("jdbc:h2:%s/players.db;mode=MySQL", PixelWarzone.getInstance().configDirPath);
-            this.dataSource = Sponge.getServiceManager().provide(SqlService.class).get().getDataSource(dbPath);
-            database.createTables();
-        } catch (Exception e) {
-            logger.error("Error loading database " + e.getMessage());
+        this.database = new DBHandler(pluginConfig.getDatabaseConfig());
+        this.database.createTables();
+
+        // Load stats for any already-online players (handles hot-reload / restart with players on)
+        for (ServerPlayer sp : event.getServer().getPlayerList().getPlayers()) {
+            playerDataMap.computeIfAbsent(sp.getUUID(), k -> new WarzonePlayer(this, sp));
+            database.loadPlayer(sp.getUUID());
         }
 
         this.selectionsManager = new SelectionsManager();
-
-        logger.info("Loading defined warzones...");
-        this.warzoneList = this.pluginConfig.getWarzones();
-        logger.info("Loaded " + this.warzoneList.size() + " warzones.");
-
-        logger.info("Registering commands...");
-        this.registerCommands();
-
-        logger.info("Registering Pixelmon events...");
-        this.registerEvents();
-
-        this.warzoneBossbar();
-        this.kickUnwelcomePlayers();
+        this.warzoneList = pluginConfig.getWarzones();
+        this.bossbarInterval = 20 * 60 * pluginConfig.getBossbarIntervalMinutes();
+        LOGGER.info("Loaded {} warzones.", warzoneList.size());
     }
 
-    @Listener
-    public void onReload(GameReloadEvent reloadEvent) {
-        logger.info("Loading plugin configuration...");
-        HoconConfigurationLoader loader = this.loadConfig();
+    @SubscribeEvent
+    public void onServerStopping(ServerStoppingEvent event) {
+        // Save all online players on shutdown
+        playerDataMap.values().forEach(wp -> {
+            if (wp.getPlayer() != null) {
+                database.savePlayer(wp);
+            }
+        });
+        database.close();
+    }
 
-        if (loader == null) {
-            this.logger.error("Something went wrong during configuration load. Stopping plugin!");
+    @SubscribeEvent
+    public void onRegisterCommands(RegisterCommandsEvent event) {
+        new WarzoneCommand(this).register(event.getDispatcher());
+    }
+
+    @SubscribeEvent
+    public void onServerTick(ServerTickEvent.Post event) {
+        bossbarTickCounter++;
+        kickTickCounter++;
+        guiFixTickCounter++;
+
+        if (bossbarTickCounter >= bossbarInterval) {
+            bossbarTickCounter = 0;
+            warzoneBossbar(event.getServer());
+        }
+
+        if (bossbarHideTimer > 0) {
+            bossbarHideTimer--;
+            if (bossbarHideTimer == 0) {
+                warzoneBossBar.removeAllPlayers();
+            }
+        }
+
+        if (kickTickCounter >= KICK_INTERVAL) {
+            kickTickCounter = 0;
+            kickUnwelcomePlayers();
+        }
+
+        if (guiFixTickCounter >= GUI_FIX_INTERVAL) {
+            guiFixTickCounter = 0;
+            clearStuckGuiOpened(event.getServer());
+        }
+
+        autoAcceptTickCounter++;
+        if (autoAcceptTickCounter >= AUTO_ACCEPT_INTERVAL) {
+            autoAcceptTickCounter = 0;
+            autoAcceptWarzoneQueries();
+        }
+
+        teamSelectTickCounter++;
+        if (teamSelectTickCounter >= TEAM_SELECT_INTERVAL) {
+            teamSelectTickCounter = 0;
+            autoSelectTeams(event.getServer());
+        }
+    }
+
+    private void warzoneBossbar(net.minecraft.server.MinecraftServer server) {
+        if (!pluginConfig.isBossbarEnabled()) {
+            warzoneBossBar.removeAllPlayers();
             return;
         }
 
+        List<ServerPlayer> inWarzone = server.getPlayerList().getPlayers().stream()
+                .filter(p -> getWarzoneList().stream().anyMatch(w -> w.hasPlayer(p)))
+                .toList();
+
+        boolean meetsThreshold = inWarzone.size() >= pluginConfig.getBossbarMinPlayers();
+
+        for (ServerPlayer p : server.getPlayerList().getPlayers()) {
+            boolean shouldSee = meetsThreshold;
+            boolean seeing = warzoneBossBar.getPlayers().contains(p);
+            if (shouldSee && !seeing) warzoneBossBar.addPlayer(p);
+            else if (!shouldSee && seeing) warzoneBossBar.removePlayer(p);
+        }
+
+        if (meetsThreshold) {
+            warzoneBossBar.setName(Component.literal(
+                    "§4§lWarzone §r§7- §ePlayers inside: §f" + inWarzone.size()));
+            warzoneBossBar.setProgress(1.0f);
+            bossbarHideTimer = pluginConfig.getBossbarDisplaySeconds() * 20;
+        }
+    }
+
+    private void autoAcceptWarzoneQueries() {
+        // If either player in a pending battle challenge is in the warzone, auto-accept on behalf
+        // of the opponent so they cannot decline.
+        var queries = new java.util.ArrayList<>(
+                com.pixelmonmod.pixelmon.battles.query.BattleQueryManager.getQueries().values());
+        if (!queries.isEmpty()) {
+            debug("autoAccept: %d pending queries", queries.size());
+        }
+        for (var query : queries) {
+            net.minecraft.server.level.ServerPlayer opponent = query.getOpponent();
+            net.minecraft.server.level.ServerPlayer challenger = query.getChallenger();
+            debug("autoAccept: query opponent=%s challenger=%s",
+                    opponent == null ? "null" : opponent.getName().getString(),
+                    challenger == null ? "null" : challenger.getName().getString());
+            if (opponent == null) continue;
+            boolean opponentInWarzone = getWarzoneList().stream().anyMatch(w -> w.hasPlayer(opponent));
+            debug("autoAccept: opponent %s inWarzone=%s pos=(%d,%d,%d)",
+                    opponent.getName().getString(), opponentInWarzone,
+                    opponent.blockPosition().getX(), opponent.blockPosition().getY(), opponent.blockPosition().getZ());
+            if (!opponentInWarzone) continue;
+            debug("Auto-accepting battle query for %s and %s (in warzone)",
+                    opponent.getName().getString(),
+                    challenger == null ? "null" : challenger.getName().getString());
+            // Both players start with state=NONE; startBattle() only fires when BOTH are ACCEPT.
+            if (challenger != null) query.acceptQuery(challenger, com.pixelmonmod.pixelmon.battles.query.BattleQueryResponseState.ACCEPT);
+            query.acceptQuery(opponent, com.pixelmonmod.pixelmon.battles.query.BattleQueryResponseState.ACCEPT);
+        }
+    }
+
+    private void autoSelectTeams(net.minecraft.server.MinecraftServer server) {
         try {
-            this.pluginConfig = new WarzoneConfig(loader);
-        } catch (IOException e) {
-            this.logger.error("Something went wrong during config parsing!");
-            e.printStackTrace();
-            return;
-        }
-        logger.info("Plugin configuration successfully loaded.");
+            // Access private teamSelectMap in TeamSelectionRegistry
+            var tsrClass = com.pixelmonmod.pixelmon.battles.api.rules.teamselection.TeamSelectionRegistry.class;
+            var tsClass  = com.pixelmonmod.pixelmon.battles.api.rules.teamselection.TeamSelection.class;
+            var psClass  = com.pixelmonmod.pixelmon.battles.api.rules.teamselection.ParticipantSelection.class;
 
-        logger.info("Loading defined warzones...");
-        this.warzoneList = this.pluginConfig.getWarzones();
-        logger.info("Loaded " + this.warzoneList.size() + " warzones.");
-    }
+            java.lang.reflect.Field mapField = tsrClass.getDeclaredField("teamSelectMap");
+            mapField.setAccessible(true);
+            @SuppressWarnings("unchecked")
+            java.util.Map<java.util.UUID,
+                    com.pixelmonmod.pixelmon.battles.api.rules.teamselection.TeamSelection> map =
+                    (java.util.Map<java.util.UUID,
+                            com.pixelmonmod.pixelmon.battles.api.rules.teamselection.TeamSelection>)
+                            mapField.get(null);
+            if (map.isEmpty()) return;
+            debug("autoSelectTeams: %d pending selections", map.size());
 
-    private void warzoneBossbar() {
-        Task task = Task.builder().execute(() -> {
-            int warzonePlayers = 0;
-            for (Player player : Sponge.getServer().getOnlinePlayers()) {
-                WarzonePlayer warzonePlayer = WarzonePlayer.fromSponge(this, player);
-                if (warzonePlayer.inWarzone()) {
-                    warzonePlayers++;
+            java.lang.reflect.Field participantsField = tsClass.getDeclaredField("participants");
+            participantsField.setAccessible(true);
+            java.lang.reflect.Field storageField   = psClass.getDeclaredField("storage");
+            storageField.setAccessible(true);
+            java.lang.reflect.Field confirmedField = psClass.getDeclaredField("confirmed");
+            confirmedField.setAccessible(true);
+            java.lang.reflect.Field teamField      = psClass.getDeclaredField("team");
+            teamField.setAccessible(true);
+            // addTeamMember(int) uses storage.get(slot) + canBattle() — correct unlike setTeam
+            java.lang.reflect.Method addTeamMember = psClass.getDeclaredMethod("addTeamMember", int.class);
+            addTeamMember.setAccessible(true);
+            java.lang.reflect.Method isReady       = tsClass.getDeclaredMethod("isReady");
+            isReady.setAccessible(true);
+            java.lang.reflect.Method startBattle   = tsClass.getDeclaredMethod("startBattle",
+                    net.minecraft.core.RegistryAccess.class);
+            startBattle.setAccessible(true);
+
+            for (var ts : new java.util.ArrayList<>(map.values())) {
+                var participants =
+                        (com.pixelmonmod.pixelmon.battles.api.rules.teamselection.ParticipantSelection[])
+                                participantsField.get(ts);
+                for (var ps : participants) {
+                    if ((boolean) confirmedField.get(ps)) continue; // already confirmed
+                    var storage = (com.pixelmonmod.pixelmon.api.storage.PartyStorage) storageField.get(ps);
+                    if (!(storage instanceof com.pixelmonmod.pixelmon.api.storage.PlayerPartyStorage pps)) continue;
+                    net.minecraft.server.level.ServerPlayer sp = pps.getPlayer();
+                    if (sp == null) continue;
+                    boolean inWarzone = getWarzoneList().stream().anyMatch(w -> w.hasPlayer(sp));
+                    if (!inWarzone) continue;
+                    debug("autoSelectTeams: selecting team for %s", sp.getName().getString());
+                    // Clear team and re-add each battlable Pokemon via addTeamMember
+                    ((java.util.List<?>) teamField.get(ps)).clear();
+                    com.pixelmonmod.pixelmon.api.pokemon.Pokemon[] all = storage.getAll();
+                    for (int i = 0; i < all.length; i++) {
+                        if (all[i] != null && !all[i].isEgg()) {
+                            addTeamMember.invoke(ps, i);
+                        }
+                    }
+                    int teamSize = ((java.util.List<?>) teamField.get(ps)).size();
+                    debug("autoSelectTeams: %s team size=%d, confirming", sp.getName().getString(), teamSize);
+                    confirmedField.set(ps, true);
+                }
+                if ((boolean) isReady.invoke(ts)) {
+                    debug("autoSelectTeams: all confirmed, starting battle");
+                    startBattle.invoke(ts, server.registryAccess());
                 }
             }
-            if (warzonePlayers > 0) {
-                Sponge.getCommandManager().process(
-                        Sponge.getServer().getConsole(), "warzonebossbar " + warzonePlayers
-                );
+        } catch (Exception e) {
+            debug("autoSelectTeams reflection failed: %s: %s", e.getClass().getSimpleName(), e.getMessage());
+        }
+    }
+
+    private void clearStuckGuiOpened(net.minecraft.server.MinecraftServer server) {
+        // Pixelmon sets guiOpened=true when a battle GUI opens on the client.
+        // It only resets via a client packet that can fail (declined challenge, crashed screen, etc.).
+        // Any player not currently in a battle should never have guiOpened=true.
+        for (net.minecraft.server.level.ServerPlayer sp : server.getPlayerList().getPlayers()) {
+            if (com.pixelmonmod.pixelmon.battles.BattleRegistry.inBattle(sp)) continue;
+            var party = com.pixelmonmod.pixelmon.api.storage.StorageProxy.getPartyNow(sp);
+            if (party != null && party.guiOpened) {
+                party.guiOpened = false;
+                debug("Cleared stuck guiOpened for %s", sp.getName().getString());
             }
-        }).interval(3, TimeUnit.MINUTES).name("Warzone bossbar").submit(this);
+        }
     }
 
     private void kickUnwelcomePlayers() {
-        Task task = Task.builder().execute(() -> {
-            for (Player player : Sponge.getServer().getOnlinePlayers()) {
-                WarzonePlayer warzonePlayer = WarzonePlayer.fromSponge(this, player);
-                if (warzonePlayer.inWarzone() && !warzonePlayer.inBattle() && !Utils.checkWarzonePlayer(this, player, warzonePlayer)) {
-                    logger.info(player.getName() + " was kicked out of the warzone");
-                    Task.builder().execute(
-                            () -> Sponge.getCommandManager().process(Sponge.getServer().getConsole(), "warp " + player.getName() + " warzone")
-                    ).submit(this);
-                    player.offer(
-                            Keys.POTION_EFFECTS,
-                            Collections.singletonList(PotionEffect.of(PotionEffectTypes.BLINDNESS, 1, 200))
-                    );
-                    return;
-                }
+        // Iterate a copy to avoid ConcurrentModificationException
+        for (WarzonePlayer wp : new java.util.ArrayList<>(playerDataMap.values())) {
+            ServerPlayer sp = wp.getPlayer();
+            if (sp == null || !sp.isAlive()) continue;
+            // Direct bounds check so ops are also subject to entry requirements
+            var warzone = getWarzoneList().stream().filter(w -> w.hasPlayer(sp)).findFirst().orElse(null);
+            if (warzone == null) continue;
+            if (wp.inBattle()) continue;
+            if (!com.github.steinein.pixelwarzone.utils.Utils.checkWarzonePlayer(this, sp, wp)) {
+                log("%s was kicked out of warzone '%s'", sp.getName().getString(), warzone.getName());
+                teleportToWarzoneSpawn(sp, warzone.getName());
             }
-        }).interval(20, TimeUnit.SECONDS).name("Kick Unwelcome Players").async().submit(this);
-    }
-
-    private HoconConfigurationLoader loadConfig() {
-
-        Optional<Asset> configAsset = Sponge.getAssetManager().getAsset(this, CONFIG);
-
-        if (configAsset.isPresent()) {
-
-            try {
-
-                configAsset.get().copyToDirectory(configDirPath, false, true);
-
-                return HoconConfigurationLoader.builder()
-                        .setPath(configDirPath.resolve(CONFIG))
-                        .build();
-
-            } catch (IOException e) {
-
-                logger.error("Could not copy the config file to the config directory! Aborting!");
-                e.printStackTrace();
-                return null;
-
-            }
-
-        } else {
-
-            logger.error("Could not find configuration asset 'pixelwarzone.conf'! Aborting!");
-            return null;
-
         }
-
     }
 
-    private void registerCommands() {
-        Sponge.getCommandManager()
-                .register(this, new WarzoneCommand(this).getSpec(), "warzone", "wzone");
+    public void teleportToWarzoneSpawn(ServerPlayer player, String warzoneName) {
+        var config = getPluginConfig();
+        if (config == null || !config.hasSpawn(warzoneName)) {
+            // Fall back to world spawn if no spawn is configured
+            var overworld = player.getServer().overworld();
+            var spawn = overworld.getSharedSpawnPos();
+            player.teleportTo(overworld, spawn.getX() + 0.5, spawn.getY(), spawn.getZ() + 0.5,
+                    player.getYRot(), player.getXRot());
+            return;
+        }
+        double[] pos = config.getSpawn(warzoneName);
+        net.minecraft.resources.ResourceLocation dim =
+                net.minecraft.resources.ResourceLocation.parse(config.getSpawnWorld(warzoneName));
+        net.minecraft.server.level.ServerLevel level = player.getServer().getLevel(
+                net.minecraft.resources.ResourceKey.create(
+                        net.minecraft.core.registries.Registries.DIMENSION, dim));
+        if (level == null) level = player.getServer().overworld();
+        player.teleportTo(level, pos[0], pos[1], pos[2], player.getYRot(), player.getXRot());
     }
 
-    private void registerEvents() {
-        Pixelmon.EVENT_BUS.register(new LoseTrainerBattleInWarzone(this));
-        Pixelmon.EVENT_BUS.register(new LoseNPCBattle(this));
-        Pixelmon.EVENT_BUS.register(new PokeballImpact(this));
-        Pixelmon.EVENT_BUS.register(new StartBattle(this));
-        Pixelmon.EVENT_BUS.register(new RaidDenEvents(this));
-        MinecraftForge.EVENT_BUS.register(new PlayerQuit(this));
-        game.getEventManager().registerListeners(this, new PlayerCommand(this));
-        game.getEventManager().registerListeners(this, new PlayerConnectionEvents());
+    public void reload() {
+        try {
+            pluginConfig.load();
+            warzoneList = pluginConfig.getWarzones();
+            bossbarInterval = 20 * 60 * pluginConfig.getBossbarIntervalMinutes();
+            LOGGER.info("Config reloaded. {} warzones loaded.", warzoneList.size());
+        } catch (IOException e) {
+            LOGGER.error("Failed to reload config: {}", e.getMessage());
+        }
+        // Refresh in-memory stats for all currently online players from DB
+        for (WarzonePlayer wp : new java.util.ArrayList<>(playerDataMap.values())) {
+            if (wp.getPlayer() != null) {
+                database.loadPlayer(wp.getPlayer().getUUID());
+            }
+        }
     }
 
     public void debug(String message, Object... args) {
-        if (this.getPluginConfig().isDebugEnabled()) {
-            this.logger.info(String.format(message, args));
+        if (pluginConfig != null && pluginConfig.isDebugEnabled()) {
+            LOGGER.info("[DEBUG] " + String.format(message, args));
         }
     }
 
     public void log(String message, Object... args) {
-        this.logger.info(String.format(message, args));
+        LOGGER.info(String.format(message, args));
     }
 
-    public Logger getLogger() {
-        return this.logger;
-    }
-
-    public WarzoneConfig getPluginConfig() {
-        return this.pluginConfig;
-    }
-
-    public SelectionsManager getSelectionsManager() {
-        return this.selectionsManager;
-    }
+    public Logger getLogger() { return LOGGER; }
+    public WarzoneConfig getPluginConfig() { return pluginConfig; }
+    public SelectionsManager getSelectionsManager() { return selectionsManager; }
+    public List<DefinedWarzone> getWarzoneList() { return warzoneList; }
+    public DBHandler getDatabase() { return database; }
 
     public void updateWarzoneList() {
-        this.warzoneList = this.getPluginConfig().getWarzones();
-    }
-
-    public List<DefinedWarzone> getWarzoneList() {
-        return this.warzoneList;
-    }
-
-    public PluginContainer getContainer() {
-        return container;
+        warzoneList = pluginConfig.getWarzones();
     }
 }

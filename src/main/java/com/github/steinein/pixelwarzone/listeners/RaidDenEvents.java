@@ -1,11 +1,10 @@
 package com.github.steinein.pixelwarzone.listeners;
 
 import com.github.steinein.pixelwarzone.PixelWarzone;
-import com.github.steinein.pixelwarzone.utils.Utils;
+import com.github.steinein.pixelwarzone.messages.Message;
 import com.pixelmonmod.pixelmon.api.events.raids.StartRaidEvent;
-import com.pixelmonmod.pixelmon.entities.EntityDen;
-import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
-import org.spongepowered.api.Sponge;
+import com.pixelmonmod.pixelmon.entities.DenEntity;
+import net.neoforged.bus.api.SubscribeEvent;
 
 public class RaidDenEvents {
 
@@ -16,23 +15,23 @@ public class RaidDenEvents {
     }
 
     @SubscribeEvent
-    public void register(StartRaidEvent startRaidEvent) {
-        if (this.plugin.getPluginConfig().broadcastDen()) {
-            EntityDen entityDen = startRaidEvent.getDen();
-            String world = entityDen.world.getWorldInfo().getWorldName();
-            int locX = (int) entityDen.posX;
-            int locZ = (int) entityDen.posZ;
+    public void onStartRaid(StartRaidEvent event) {
+        if (!plugin.getPluginConfig().broadcastDen()) return;
 
-            boolean inWarzone = this.plugin.getWarzoneList().stream()
-                    .anyMatch(warzone -> warzone.hasLocation(world, locX, locZ));
+        DenEntity den = event.getDen();
+        String world = den.level().dimension().location().toString();
+        int locX = (int) den.getX();
+        int locZ = (int) den.getZ();
 
-            if (inWarzone) {
-                startRaidEvent.getRaidPixelmon().setDead();
-                Sponge.getServer().getBroadcastChannel().send(Utils.toText(
-                        PixelWarzone.getInstance().getPluginConfig().getPrefix() +
-                                "A raid den has started!"
-                ));
-            }
+        boolean inWarzone = plugin.getWarzoneList().stream()
+                .anyMatch(warzone -> warzone.hasLocation(world, locX, locZ));
+
+        if (inWarzone) {
+            event.getRaidPixelmon().remove(net.minecraft.world.entity.Entity.RemovalReason.DISCARDED);
+            den.getServer().getPlayerList().broadcastSystemMessage(
+                    Message.parseColors(plugin.getPluginConfig().getPrefix() + "A raid den has started!"),
+                    false
+            );
         }
     }
 }
