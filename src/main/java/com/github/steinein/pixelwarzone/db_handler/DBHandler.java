@@ -1,105 +1,106 @@
 package com.github.steinein.pixelwarzone.db_handler;
 
+import com.github.steinein.pixelwarzone.PixelWarzone;
+import com.github.steinein.pixelwarzone.WarzonePlayer;
+import com.github.steinein.pixelwarzone.config.DatabaseConfig;
+import com.zaxxer.hikari.HikariConfig;
+import com.zaxxer.hikari.HikariDataSource;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
-
-import com.github.steinein.pixelwarzone.PixelWarzone;
-import com.github.steinein.pixelwarzone.WarzonePlayer;
-import org.spongepowered.api.Sponge;
-import org.spongepowered.api.entity.living.player.Player;
-import org.spongepowered.api.entity.living.player.User;
-import org.spongepowered.api.service.user.UserStorageService;
 
 public class DBHandler {
 
-    public void createTables() {
-        String sql = "CREATE TABLE IF NOT EXISTS players (\n"
-                + " id varchar(64) PRIMARY KEY,\n"
-                + " wins INT DEFAULT 0,\n"
-                + " losses INT DEFAULT 0,\n"
-                + ");";
+    private static final Logger LOGGER = LoggerFactory.getLogger(DBHandler.class);
+    private final HikariDataSource dataSource;
 
-        executeSQLStatement(sql);
+    public DBHandler(DatabaseConfig config) {
+        HikariConfig hikariConfig = new HikariConfig();
+        hikariConfig.setPoolName(config.getPoolName());
+        hikariConfig.setJdbcUrl("jdbc:mysql://" + config.getIp() + ":" + config.getPort()
+                + "/" + config.getDatabase() + "?useSSL=false&allowPublicKeyRetrieval=true");
+        hikariConfig.setUsername(config.getUsername());
+        hikariConfig.setPassword(config.getPassword());
+        hikariConfig.setMaximumPoolSize(10);
+        hikariConfig.setMinimumIdle(2);
+        this.dataSource = new HikariDataSource(hikariConfig);
     }
 
-    public void savePlayer(WarzonePlayer warzonePlayer) {
-        String sql = "INSERT INTO players (id, wins, losses) VALUES(?, ?, ?) " +
-                "ON DUPLICATE KEY UPDATE " +
-                "wins = ?," +
-                "losses = ?";
+    public Connection getConnection() throws SQLException {
+        return dataSource.getConnection();
+    }
 
-        try (Connection conn = PixelWarzone.getInstance().getConnection()) {
-            PreparedStatement pstmt = conn.prepareStatement(sql);
-            // set parameter
-            pstmt.setString(1, warzonePlayer.getSpongePlayer().getUniqueId().toString());
-            pstmt.setLong(2, warzonePlayer.getWins());
-            pstmt.setLong(3, warzonePlayer.getLosses());
-
-            pstmt.setLong(4, warzonePlayer.getWins());
-            pstmt.setLong(5, warzonePlayer.getLosses());
-
-            pstmt.executeUpdate();
-        } catch (SQLException e) {
-            PixelWarzone.getInstance().getLogger().warn(e.getMessage());
+    public void close() {
+        if (dataSource != null && !dataSource.isClosed()) {
+            dataSource.close();
         }
     }
 
-    public void loadPlayer(User user) {
-        WarzonePlayer warzonePlayer = WarzonePlayer.fromSponge(PixelWarzone.getInstance(), (Player) user);
-
-        try (Connection conn = PixelWarzone.getInstance().getConnection()) {
-            PreparedStatement stmt = conn.prepareStatement("SELECT * FROM players where id='" + user.getUniqueId().toString() + "'");
-            ResultSet results = stmt.executeQuery();
-            while (results.next()) {
-                warzonePlayer.setWins(results.getInt("wins"));
-                warzonePlayer.setLosses(results.getInt("losses"));
-            }
-            PixelWarzone.getInstance().playerDataMap.put(user.getUniqueId(), warzonePlayer);
+    public void createTables() {
+        String sql = "CREATE TABLE IF NOT EXISTS pixelwarzone_players (" +
+                "id VARCHAR(36) PRIMARY KEY," +
+                "name VARCHAR(64) DEFAULT ''," +
+                "wins INT DEFAULT 0," +
+                "losses INT DEFAULT 0" +
+                ");";
+        try (Connection conn = getConnection(); Statement stmt = conn.createStatement()) {
+            stmt.execute(sql);
+            // Add name column if upgrading from an older version without it
+            try { stmt.execute("ALTER TABLE pixelwarzone_players ADD COLUMN name VARCHAR(64) DEFAULT ''"); }
+            catch (SQLException ignored) {}
         } catch (SQLException e) {
-            PixelWarzone.getInstance().getLogger().warn(e.getMessage());
+            LOGGER.error("Error creating tables: {}", e.getMessage());
+        }
+    }
+
+    public void savePlayer(WarzonePlayer warzonePlayer) {
+        String sql = "INSERT INTO pixelwarzone_players (id, name, wins, losses) VALUES(?, ?, ?, ?) " +
+                "ON DUPLICATE KEY UPDATE name = VALUES(name), wins = VALUES(wins), losses = VALUES(losses)";
+        try (Connection conn = getConnection(); PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setString(1, warzonePlayer.getPlayer().getUUID().toString());
+            pstmt.setString(2, warzonePlayer.getPlayer().getName().getString());
+            pstmt.setInt(3, warzonePlayer.getWins());
+            pstmt.setInt(4, warzonePlayer.getLosses());
+            pstmt.executeUpdate();
+        } catch (SQLException e) {
+            LOGGER.error("Error saving player: {}", e.getMessage());
+        }
+    }
+
+    public void loadPlayer(UUID uuid) {
+        try (Connection conn = getConnection();
+             PreparedStatement stmt = conn.prepareStatement("SELECT wins, losses FROM pixelwarzone_players WHERE id = ?")) {
+            stmt.setString(1, uuid.toString());
+            ResultSet rs = stmt.executeQuery();
+            WarzonePlayer wp = PixelWarzone.getInstance().playerDataMap.get(uuid);
+            if (wp != null && rs.next()) {
+                wp.setWins(rs.getInt("wins"));
+                wp.setLosses(rs.getInt("losses"));
+            }
+        } catch (SQLException e) {
+            LOGGER.error("Error loading player {}: {}", uuid, e.getMessage());
         }
     }
 
     public List<WarzonePlayer> getTopPlayers() {
-        List<WarzonePlayer> players = new ArrayList<>();
-        Optional<UserStorageService> userStorage = Sponge.getServiceManager().provide(UserStorageService.class);
-
-        if (!userStorage.isPresent()) {
-            return players;
-        }
-
-        try (Connection conn = PixelWarzone.getInstance().getConnection()) {
-            PreparedStatement stmt = conn.prepareStatement("SELECT * FROM players ORDER by wins DESC LIMIT 10");
-            ResultSet results = stmt.executeQuery();
-            while (results.next()) {
-                UUID uuid = UUID.fromString(results.getString("id"));
-                User user = userStorage.get().get(uuid).orElse(null);
-
-                if (user == null) {
-                    continue;
-                }
-
-                WarzonePlayer warzonePlayer = WarzonePlayer.fromUser(PixelWarzone.getInstance(), user);
-                warzonePlayer.setWins(results.getInt("wins"));
-                warzonePlayer.setLosses(results.getInt("losses"));
-                players.add(warzonePlayer);
+        List<WarzonePlayer> pixelwarzone_players = new ArrayList<>();
+        try (Connection conn = getConnection();
+             PreparedStatement stmt = conn.prepareStatement(
+                     "SELECT id, name, wins, losses FROM pixelwarzone_players ORDER BY wins DESC LIMIT 10")) {
+            ResultSet rs = stmt.executeQuery();
+            while (rs.next()) {
+                UUID uuid = UUID.fromString(rs.getString("id"));
+                String name = rs.getString("name");
+                WarzonePlayer wp = new WarzonePlayer(uuid, name, rs.getInt("wins"), rs.getInt("losses"));
+                pixelwarzone_players.add(wp);
             }
         } catch (SQLException e) {
-            PixelWarzone.getInstance().getLogger().warn(e.getMessage());
+            LOGGER.error("Error getting top pixelwarzone_players: {}", e.getMessage());
         }
-
-        return players;
-    }
-
-    private static void executeSQLStatement(String sql) {
-        try (Connection conn = PixelWarzone.getInstance().getConnection()) {
-            Statement stmt = conn.createStatement();
-            stmt.execute(sql);
-        } catch (SQLException e) {
-            PixelWarzone.getInstance().getLogger().warn(e.getMessage());
-        }
+        return pixelwarzone_players;
     }
 }

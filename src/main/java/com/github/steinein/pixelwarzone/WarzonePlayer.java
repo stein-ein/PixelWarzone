@@ -1,202 +1,147 @@
 package com.github.steinein.pixelwarzone;
 
 import com.github.steinein.pixelwarzone.messages.Message;
-import com.pixelmonmod.pixelmon.Pixelmon;
+import com.pixelmonmod.pixelmon.api.battles.BattleEndCause;
 import com.pixelmonmod.pixelmon.api.pokemon.Pokemon;
+import com.pixelmonmod.pixelmon.api.storage.PlayerPartyStorage;
+import com.pixelmonmod.pixelmon.api.storage.StorageProxy;
 import com.pixelmonmod.pixelmon.battles.BattleRegistry;
-import com.pixelmonmod.pixelmon.battles.controller.BattleControllerBase;
+import com.pixelmonmod.pixelmon.battles.controller.BattleController;
 import com.pixelmonmod.pixelmon.battles.controller.participants.PlayerParticipant;
-import com.pixelmonmod.pixelmon.storage.PlayerPartyStorage;
-import net.minecraft.entity.player.EntityPlayerMP;
-import org.spongepowered.api.entity.living.player.Player;
-import org.spongepowered.api.entity.living.player.User;
-import org.spongepowered.api.text.Text;
-import org.spongepowered.api.world.Location;
-import org.spongepowered.api.world.World;
+import net.minecraft.network.chat.Component;
+import net.minecraft.server.level.ServerPlayer;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
+import java.util.UUID;
 
 public class WarzonePlayer {
 
     private final PixelWarzone plugin;
-
-    private final Player spongePlayer;
-
-    public EntityPlayerMP getForgePlayer() {
-        return forgePlayer;
-    }
-
-    private final EntityPlayerMP forgePlayer;
-    private final Location<World> location;
-    private User user;
+    private final ServerPlayer player;
+    private final String offlineName; // set for DB-only records
 
     private int wins;
     private int losses;
 
-    private WarzonePlayer(final PixelWarzone plugin, final EntityPlayerMP forgePlayer) {
+    // Constructor for online players
+    public WarzonePlayer(final PixelWarzone plugin, final ServerPlayer player) {
         this.plugin = plugin;
-        this.spongePlayer = (Player) forgePlayer;
-        this.location = ((Player) forgePlayer).getLocation();
-        this.forgePlayer = forgePlayer;
+        this.player = player;
+        this.offlineName = null;
     }
 
-    private WarzonePlayer(final PixelWarzone plugin, final Player spongePlayer) {
-        this.plugin = plugin;
-        this.spongePlayer = spongePlayer;
-        this.location = spongePlayer.getLocation();
-        this.forgePlayer = (EntityPlayerMP) spongePlayer;
-    }
-
-    private WarzonePlayer(final PixelWarzone plugin, final User user) {
-        this.plugin = plugin;
-        this.user = user;
-        this.forgePlayer = null;
-        this.spongePlayer = null;
-        this.location = null;
-    }
-
-    public int getWins() {
-        return wins;
-    }
-
-    public int getLosses() {
-        return losses;
-    }
-
-    public void setWins(int wins) {
+    // Constructor for offline/DB-only records (no live player reference)
+    public WarzonePlayer(UUID uuid, String name, int wins, int losses) {
+        this.plugin = null;
+        this.player = null;
+        this.offlineName = name != null ? name : "Unknown";
         this.wins = wins;
-    }
-
-    public void setLosses(int losses) {
         this.losses = losses;
     }
 
-    public Player getSpongePlayer() {
-        return this.spongePlayer;
+    public String getDisplayName() {
+        if (player != null) return player.getName().getString();
+        return offlineName != null ? offlineName : "Unknown";
     }
 
-    public User getUser() {
-        return this.user;
+    public ServerPlayer getPlayer() {
+        return player;
     }
 
-    public static WarzonePlayer fromForge(final PixelWarzone plugin, final EntityPlayerMP player) {
-        return new WarzonePlayer(plugin, player);
-    }
-
-    public static WarzonePlayer fromSponge(final PixelWarzone plugin, final Player player) {
-        return new WarzonePlayer(plugin, player);
-    }
-
-    public static WarzonePlayer fromUser(final PixelWarzone plugin, final User user) {
-        return new WarzonePlayer(plugin, user);
-    }
+    public int getWins() { return wins; }
+    public int getLosses() { return losses; }
+    public void setWins(int wins) { this.wins = wins; }
+    public void setLosses(int losses) { this.losses = losses; }
 
     public boolean inWarzone() {
-
-        if (this.spongePlayer.hasPermission(WarzonePermission.WARZONE_EXCLUDE)) {
-            this.plugin.debug("%s has the %s permission, therefore they are not counted within warzones.",
-                    this.toString(), WarzonePermission.WARZONE_EXCLUDE);
-            return false;
-        }
-
-        return this.plugin.getWarzoneList().stream().anyMatch(warzone -> warzone.hasPlayer(this.spongePlayer));
-
+        if (player == null) return false;
+        // Op level 3+ are excluded from warzone detection
+        if (player.hasPermissions(WarzonePermission.EXEMPT_LEVEL)) return false;
+        return plugin.getWarzoneList().stream().anyMatch(w -> w.hasPlayer(player));
     }
 
     public boolean inBattle() {
-        return BattleRegistry.getBattle(this.forgePlayer) != null;
+        if (player == null) return false;
+        return BattleRegistry.inBattle(player);
     }
 
-    public BattleControllerBase getBattle() {
-        return BattleRegistry.getBattle(this.forgePlayer);
+    public BattleController getBattle() {
+        if (player == null) return null;
+        return BattleRegistry.getBattle(player);
     }
 
     public WarzonePlayer getBattleOpponent() {
-        BattleControllerBase bcb = this.getBattle();
-        List<PlayerParticipant> players = bcb.getPlayers();
-
-        for (PlayerParticipant player : players) {
-            if (player.player.equals(this.forgePlayer)) continue;
-
-            return WarzonePlayer.fromForge(plugin, player.player);
+        BattleController bc = getBattle();
+        if (bc == null) return null;
+        for (var p : bc.participants) {
+            if (p instanceof PlayerParticipant pp && !pp.player.getUUID().equals(player.getUUID())) {
+                return new WarzonePlayer(plugin, pp.player);
+            }
         }
-
         return null;
     }
 
+    /**
+     * Removes one random Pokemon from this player's party and returns it.
+     */
     public Pokemon removePokemon(final int howMany) {
-        final PlayerPartyStorage party = this.getParty();
-        final int partySize = party.getTeam().size();
-        if (partySize <= howMany) {
-            this.plugin.debug("%s has %d Pokemon in party, while the plugin would take %d. Aborting removal.",
-                    this.toString(), partySize, howMany);
-            return null; // Can't take more pokemon than the player has
-        }
-
-        final List<Integer> validSlots = this.getValidSlots();
-        this.plugin.debug("%s has %d valid (non-empty) slots in their party.", this.toString(), validSlots.size());
-
-        final int randomSlot = validSlots.get(new Random().nextInt(validSlots.size()));
-        this.plugin.debug("Slot %d has been chosen for removal.", randomSlot);
-
-        final Pokemon removedPokemon = party.get(randomSlot);
-        if (removedPokemon == null) {
-            this.plugin.debug("Something went wrong during Pokemon removal. Could not find any pokemon at slot %d.",
-                    randomSlot);
+        PlayerPartyStorage party = getParty();
+        if (party == null) {
+            if (plugin != null) plugin.log("removePokemon: party is null for %s — aborting.", this);
             return null;
         }
 
-        this.plugin.log("Removing Pokemon %s (slot: %d) from player %s.",
-                removedPokemon.getDisplayName(),
-                randomSlot,
-                this.spongePlayer.getDisplayNameData().displayName());
+        List<Integer> validSlots = new ArrayList<>();
+        Pokemon[] all = party.getAll();
+        for (int i = 0; i < all.length; i++) {
+            if (all[i] != null) validSlots.add(i);
+        }
 
-        party.set(randomSlot, null);
+        if (plugin != null) plugin.log("removePokemon: %s has %d valid slots, need more than %d to remove.", this, validSlots.size(), howMany);
 
-        return removedPokemon;
+        if (validSlots.size() <= howMany) {
+            if (plugin != null) plugin.log("removePokemon: %s has too few Pokemon (%d <= %d) — aborting.", this, validSlots.size(), howMany);
+            return null;
+        }
 
+        int slot = validSlots.get(new Random().nextInt(validSlots.size()));
+        Pokemon removed = party.get(slot);
+        if (removed == null) {
+            if (plugin != null) plugin.log("removePokemon: slot %d returned null Pokemon for %s — aborting.", slot, this);
+            return null;
+        }
+
+        if (plugin != null) plugin.log("removePokemon: removing %s (slot %d) from %s.", removed.getDisplayName().getString(), slot, player.getName().getString());
+        party.set(slot, null);
+        return removed;
     }
 
     public boolean givePokemon(final Pokemon pokemon) {
-        return this.getParty().add(pokemon);
+        PlayerPartyStorage party = getParty();
+        if (party == null || pokemon == null) return false;
+        var result = party.addSilently(pokemon);
+        // TriBoolean: TRUE means success
+        return result == com.pixelmonmod.pixelmon.api.enums.TriBoolean.TRUE;
     }
 
     public void sendMessage(final Message message, final Object... args) {
-        this.spongePlayer.sendMessage(message.getMessage(args));
+        if (player != null) player.sendSystemMessage(message.getMessage(args));
     }
 
-    public void sendMessage(final Text text) {
-        this.spongePlayer.sendMessage(text);
-    }
-
-    private List<Integer> getValidSlots() {
-
-        final Pokemon[] partyPokemon = this.getParty().getAll();
-        final List<Integer> validSlots = new ArrayList<>();
-
-        for (int pokeIndex = 0; pokeIndex < partyPokemon.length; pokeIndex++) {
-
-            if (partyPokemon[pokeIndex] != null) {
-                this.plugin.debug("Found a valid Pokemon slot at index %d.", pokeIndex);
-                validSlots.add(pokeIndex);
-            }
-
-        }
-
-        return validSlots;
-
+    public void sendMessage(final Component component) {
+        if (player != null) player.sendSystemMessage(component);
     }
 
     public PlayerPartyStorage getParty() {
-        return Pixelmon.storageManager.getParty(this.forgePlayer);
+        if (player == null) return null;
+        return StorageProxy.getPartyNow(player);
     }
 
     @Override
     public String toString() {
-        return "[Name: " + this.spongePlayer.getName() +
-                "; UUID: " + this.spongePlayer.getUniqueId() +
-                "; Location: " + this.location + "]";
+        if (player == null) return "[Offline WarzonePlayer]";
+        return "[Name: " + player.getName().getString() + "; UUID: " + player.getUUID() + "]";
     }
 }

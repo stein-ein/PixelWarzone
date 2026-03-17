@@ -5,11 +5,10 @@ import com.github.steinein.pixelwarzone.WarzonePlayer;
 import com.github.steinein.pixelwarzone.messages.Message;
 import com.pixelmonmod.pixelmon.api.pokemon.Pokemon;
 import com.pixelmonmod.pixelmon.battles.BattleRegistry;
-import com.pixelmonmod.pixelmon.battles.controller.BattleControllerBase;
-import net.minecraft.entity.player.EntityPlayerMP;
-import net.minecraftforge.fml.common.eventhandler.EventPriority;
-import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
-import net.minecraftforge.fml.common.gameevent.PlayerEvent;
+import com.pixelmonmod.pixelmon.battles.controller.BattleController;
+import net.minecraft.server.level.ServerPlayer;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 
 public class PlayerQuit {
 
@@ -19,29 +18,45 @@ public class PlayerQuit {
         this.plugin = plugin;
     }
 
-    @SubscribeEvent(priority = EventPriority.HIGHEST)
-    public void PlayerDisconnect(PlayerEvent.PlayerLoggedOutEvent e) {
-        WarzonePlayer warzonePlayer = WarzonePlayer.fromForge(plugin, (EntityPlayerMP) e.player);
-        if (warzonePlayer != null && warzonePlayer.inWarzone()) {
-            if (BattleRegistry.getBattle(e.player) != null) {
-                BattleControllerBase bcb = BattleRegistry.getBattle(e.player);
-                WarzonePlayer opponent = warzonePlayer.getBattleOpponent();
-                if (bcb.getPlayers() == null || opponent == null) {
-                    return;
-                }
-                Pokemon pokemon = warzonePlayer.removePokemon(1);
-                boolean success = opponent.givePokemon(pokemon);
-                if (success) {
-                    opponent.sendMessage(Message.GAINED_POKEMON, pokemon.getDisplayName());
-                    this.plugin.getLogger().info(
-                            "Gave " + opponent.getForgePlayer().getName() + " " + pokemon.getDisplayName() + " that "
-                                    + warzonePlayer.getForgePlayer().getName() + " lost."
-                    );
-                } else {
-                    this.plugin.getLogger().info("Could not give " + pokemon.getDisplayName() + " to the winner");
-                }
-            }
+    @SubscribeEvent
+    public void onPlayerQuit(PlayerEvent.PlayerLoggedOutEvent event) {
+        if (!(event.getEntity() instanceof ServerPlayer sp)) return;
 
+        // Use direct bounds check — inWarzone() exempts ops but they should still forfeit
+        boolean inWarzone = plugin.getWarzoneList().stream().anyMatch(w -> w.hasPlayer(sp));
+        if (!inWarzone || !BattleRegistry.inBattle(sp)) return;
+
+        WarzonePlayer warzonePlayer = new WarzonePlayer(plugin, sp);
+        BattleController bc = BattleRegistry.getBattle(sp);
+        WarzonePlayer opponent = warzonePlayer.getBattleOpponent();
+        if (bc == null || opponent == null) return;
+
+        // Only apply forfeit for PvP battles
+        long pvpCount = bc.participants.stream()
+                .filter(p -> p instanceof com.pixelmonmod.pixelmon.battles.controller.participants.PlayerParticipant)
+                .count();
+        if (pvpCount != 2 || pvpCount != bc.participants.size()) return;
+
+        plugin.log("%s disconnected during a warzone PvP battle — applying forfeit.", sp.getName().getString());
+
+        Pokemon pokemon = warzonePlayer.removePokemon(1);
+        if (pokemon == null) return;
+
+        warzonePlayer.sendMessage(Message.LOST_POKEMON, pokemon.getDisplayName().getString());
+        boolean gave = opponent.givePokemon(pokemon);
+        if (gave) {
+            opponent.sendMessage(Message.GAINED_POKEMON, pokemon.getDisplayName().getString());
+            plugin.log("Gave %s %s that %s lost on disconnect.",
+                    opponent.getPlayer().getName().getString(),
+                    pokemon.getDisplayName().getString(),
+                    sp.getName().getString());
         }
+
+        WarzonePlayer dbWinner = plugin.playerDataMap.get(opponent.getPlayer().getUUID());
+        WarzonePlayer dbLoser  = plugin.playerDataMap.get(sp.getUUID());
+        if (dbWinner != null) { dbWinner.setWins(dbWinner.getWins() + 1); plugin.getDatabase().savePlayer(dbWinner); }
+        if (dbLoser  != null) { dbLoser.setLosses(dbLoser.getLosses() + 1); plugin.getDatabase().savePlayer(dbLoser); }
+
+        if (opponent.getParty() != null) opponent.getParty().heal();
     }
 }

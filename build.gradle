@@ -1,77 +1,68 @@
-buildscript {
-    repositories {
-        mavenCentral()
-        maven {
-            name = "forge"
-            url = "https://maven.minecraftforge.net"
-        }
-        maven {
-            name = 'sponge'
-            url = 'https://repo.spongepowered.org/repository/maven-public/'
-        }
-    }
-    dependencies {
-        classpath("com.anatawa12.forge:ForgeGradle:2.3-1.0.+") {
-            changing = true
-        }
-        classpath 'com.github.jengelman.gradle.plugins:shadow:4.0.1'
-    }
+plugins {
+    id 'net.neoforged.moddev' version '2.0.140'
+    id 'com.gradleup.shadow' version '8.3.5'
 }
 
-apply plugin: 'net.minecraftforge.gradle.forge'
-apply plugin: 'com.github.johnrengelman.shadow'
-//Only edit below this line, the above code adds and enables the nessasary things for Forge to be setup.
+version = '1.21.1-1.0.0'
+group = 'com.github.steinein.pixelwarzone'
+base { archivesName = 'pixelwarzone' }
 
+java.toolchain.languageVersion = JavaLanguageVersion.of(21)
 
-group 'com.github.steinein'
-version '1.12.2-1.0.8'
-archivesBaseName = "PixelWarzone"
+configurations {
+    shade
+    implementation.extendsFrom(shade)
+}
 
-sourceCompatibility = targetCompatibility = "1.8" // Need this here so eclipse task generates correctly.
-compileJava.options.encoding = "UTF-8"
+neoForge {
+    version = '21.1.200'
 
-minecraft {
-    version = "1.12.2-14.23.5.2838"
-    runDir = "run"
-    mappings = "snapshot_20180808"
+    runs {
+        configureEach {
+            systemProperty 'forge.logging.markers', 'REGISTRIES'
+            systemProperty 'forge.logging.console.level', 'debug'
+        }
+        server {
+            type = 'server'
+        }
+    }
+
+    mods {
+        pixelwarzone {
+            sourceSet sourceSets.main
+        }
+    }
 }
 
 repositories {
     mavenCentral()
-    maven {
-        name = 'sponge'
-        url = 'https://repo.spongepowered.org/repository/maven-public/'
-    }
-    /* maven {
-        name = 'enginehub'
-        url = 'https://maven.enginehub.org/repo/'
-    } */
 }
 
 dependencies {
-    implementation "org.spongepowered:math:2.0.0"
-    compile 'org.spongepowered:spongeapi:7.3.0'
-    compile fileTree(dir: 'libs', include: '*.jar')
+    // Pixelmon — provided on the server, compile-only
+    compileOnly fileTree(dir: 'libs', include: 'Pixelmon*.jar')
+
+    // HikariCP connection pool + MySQL driver — shaded and relocated to avoid conflicts
+    shade 'com.zaxxer:HikariCP:5.1.0'
+    shade 'com.mysql:mysql-connector-j:9.1.0'
 }
 
-processResources {
-    // this will ensure that this task is redone when the versions change.
-    inputs.property "version", project.version
-    inputs.property "mcversion", project.minecraft.version
+shadowJar {
+    configurations = [project.configurations.shade]
+    archiveClassifier = ''
+    mergeServiceFiles()
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    exclude 'META-INF/maven/**'
+    exclude 'META-INF/*.SF'
+    exclude 'META-INF/*.DSA'
+    exclude 'META-INF/*.RSA'
 
-    // replace stuff in mcmod.info, nothing else
-    from(sourceSets.main.resources.srcDirs) {
-        include 'mcmod.info'
-        // replace version and mcversion
-        expand 'version': project.version, 'mcversion': project.minecraft.version
-    }
-
-    // copy everything else, thats not the mcmod.info
-    from(sourceSets.main.resources.srcDirs) {
-        exclude 'mcmod.info'
-    }
+    // Relocate to avoid conflicts with other mods that bundle the same libraries
+    relocate 'com.zaxxer.hikari',  'com.github.steinein.pixelwarzone.shade.hikari'
+    relocate 'com.mysql',          'com.github.steinein.pixelwarzone.shade.mysql'
+    relocate 'org.slf4j',          'com.github.steinein.pixelwarzone.shade.slf4j'
+    relocate 'com.google.protobuf', 'com.github.steinein.pixelwarzone.shade.protobuf'
 }
 
-test {
-    useJUnitPlatform()
-}
+assemble.dependsOn shadowJar
+jar.enabled = false

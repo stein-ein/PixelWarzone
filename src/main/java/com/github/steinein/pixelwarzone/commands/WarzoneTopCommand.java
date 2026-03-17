@@ -1,84 +1,43 @@
 package com.github.steinein.pixelwarzone.commands;
 
 import com.github.steinein.pixelwarzone.PixelWarzone;
-import com.github.steinein.pixelwarzone.WarzonePermission;
 import com.github.steinein.pixelwarzone.WarzonePlayer;
 import com.github.steinein.pixelwarzone.messages.Message;
 import com.github.steinein.pixelwarzone.ui.Leaderboard;
 import com.github.steinein.pixelwarzone.utils.Utils;
-import org.spongepowered.api.Sponge;
-import org.spongepowered.api.command.CommandException;
-import org.spongepowered.api.command.CommandResult;
-import org.spongepowered.api.command.CommandSource;
-import org.spongepowered.api.command.args.CommandContext;
-import org.spongepowered.api.command.spec.CommandExecutor;
-import org.spongepowered.api.command.spec.CommandSpec;
-import org.spongepowered.api.entity.living.player.Player;
-import org.spongepowered.api.entity.living.player.User;
-import org.spongepowered.api.scheduler.Task;
-import org.spongepowered.api.service.user.UserStorageService;
-import org.spongepowered.api.text.Text;
+import com.mojang.brigadier.context.CommandContext;
+import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.server.level.ServerPlayer;
 
-import java.util.*;
+import java.util.List;
 
 public class WarzoneTopCommand {
 
-    private final CommandSpec spec;
+    private final PixelWarzone plugin;
 
     public WarzoneTopCommand(final PixelWarzone plugin) {
-        this.spec = CommandSpec.builder()
-                .description(Text.of("Lists the top warzone players."))
-                .permission(WarzonePermission.WARZONE_TOP)
-                .executor((src, args) -> execute(src, args, plugin))
-                .build();
+        this.plugin = plugin;
     }
 
-    public CommandSpec getSpec() {
-        return this.spec;
-    }
+    public int execute(CommandContext<CommandSourceStack> ctx) {
+        CommandSourceStack src = ctx.getSource();
 
-    public CommandResult execute(CommandSource src, CommandContext args, final PixelWarzone plugin) throws CommandException {
-        if (src != null) {
-            if (src instanceof Player && plugin.getPluginConfig().showGUILeaderboard()) {
-                Leaderboard.openMenu((Player) src);
-            } else {
-                Task.builder().execute(() -> {
-                    List<WarzonePlayer> playerList = plugin.getDatabase().getTopPlayers();
-                    Optional<UserStorageService> userStorage = Sponge.getServiceManager().provide(UserStorageService.class);
-                    if (playerList != null && userStorage.isPresent()) {
-                        src.sendMessage(Utils.toText("&7&l=== &4&lWarzone Leaderboard &7&l==="));
-                        showPlayers(src, playerList, userStorage.get());
-                    }
-                }).async().submit(plugin);
+        ServerPlayer player = src.getPlayer(); // null if console
+
+        if (player != null && plugin.getPluginConfig().showGUILeaderboard()) {
+            Leaderboard.openMenu(player, plugin);
+        } else {
+            List<WarzonePlayer> topPlayers = plugin.getDatabase().getTopPlayers();
+            src.sendSystemMessage(Message.parseColors("&7&l=== &4&lWarzone Leaderboard &7&l==="));
+            for (int i = 0; i < topPlayers.size(); i++) {
+                WarzonePlayer wp = topPlayers.get(i);
+                src.sendSystemMessage(Message.parseColors(
+                        "&7[&f" + (i + 1) + "&7]&e " + wp.getDisplayName() +
+                                ": &aWins " + wp.getWins() +
+                                " &f-&c Losses " + wp.getLosses()));
             }
         }
-        return CommandResult.success();
+        return 1;
     }
 
-    private void showPlayers(CommandSource src, List<WarzonePlayer> playerList, UserStorageService userStorage) {
-        List<WarzonePlayer> sortedPlayers = new ArrayList<>();
-        playerList.forEach(wp -> {
-            WarzonePlayer onlinePlayer = PixelWarzone.getInstance().playerDataMap.get(wp.getUser().getUniqueId());
-            if (onlinePlayer != null) {
-                sortedPlayers.add(onlinePlayer);
-            } else {
-                sortedPlayers.add(wp);
-            }
-        });
-        sortedPlayers.sort(Comparator.comparingDouble(WarzonePlayer::getWins).reversed());
-        for (int x = 0; x < sortedPlayers.size(); x++) {
-            WarzonePlayer warzonePlayer = sortedPlayers.get(x);
-            UUID uuid = warzonePlayer.getUser() != null ? warzonePlayer.getUser().getUniqueId() : warzonePlayer.getSpongePlayer().getUniqueId();
-            User user = userStorage.get(uuid).orElse(null);
-            if (user != null) {
-                int pos = x + 1;
-                src.sendMessage(Utils.toText(
-                        "&7[&f" + pos + "&7]&e " +
-                                user.getName() +
-                                ": &aWins " + warzonePlayer.getWins() +
-                                " &f-&c Losses " + warzonePlayer.getLosses()
-                ));
-            }
-        }
-    }
 }

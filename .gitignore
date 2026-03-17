@@ -1,8 +1,23 @@
-.gradle/*
-/libs/*
-/build/*
-build/*
-logs/*
-run/
+# Gradle
+.gradle/
+build/
+libs/
+
+# IDE
 .idea/
+.vscode/
 *.iml
+
+# NeoForge dev environment (generated, not needed to build)
+runs/
+run/
+net/
+logs/
+
+# Local config/scripts (not part of the mod source)
+gradle.properties
+build.sh
+
+# Misc
+*.class
+*.log

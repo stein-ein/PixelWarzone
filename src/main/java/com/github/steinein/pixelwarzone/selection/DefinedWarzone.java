@@ -1,8 +1,6 @@
 package com.github.steinein.pixelwarzone.selection;
 
-import org.spongepowered.api.entity.living.player.Player;
-import org.spongepowered.api.world.Location;
-import org.spongepowered.api.world.World;
+import net.minecraft.server.level.ServerPlayer;
 
 public class DefinedWarzone {
 
@@ -14,29 +12,33 @@ public class DefinedWarzone {
         this.selection = selection;
     }
 
-    /*
+    public String getName() {
+        return this.name;
+    }
 
-    Since the rectangle is axis-aligned, we can just check whether the player's position conforms to bounds
-    of its sides.
+    public WarzoneSelection getSelection() {
+        return this.selection;
+    }
 
-     */
-    public boolean hasPlayer(final Player player) {
-        final Location<World> loc = player.getLocation();
-
-        final int locX = loc.getBlockX();
-        final int locZ = loc.getBlockZ();
+    public boolean hasPlayer(final ServerPlayer player) {
+        final int locX = player.blockPosition().getX();
+        final int locZ = player.blockPosition().getZ();
+        final String world = player.level().dimension().location().toString();
 
         final boolean withinXBound = (locX <= this.selection.greaterX()) && (locX >= this.selection.lesserX());
         final boolean withinZBound = (locZ <= this.selection.greaterZ()) && (locZ >= this.selection.lesserZ());
 
-        return withinXBound && withinZBound && selection.getWorld() != null && selection.getWorld().equals(player.getWorld().getName());
-
+        return withinXBound && withinZBound
+                && selection.getWorld() != null
+                && selection.getWorld().equals(world);
     }
 
     public boolean hasLocation(final String world, final int locX, final int locZ) {
         final boolean withinXBound = (locX <= this.selection.greaterX()) && (locX >= this.selection.lesserX());
         final boolean withinZBound = (locZ <= this.selection.greaterZ()) && (locZ >= this.selection.lesserZ());
 
-        return withinXBound && withinZBound && selection.getWorld() != null && selection.getWorld().equals(world);
+        return withinXBound && withinZBound
+                && selection.getWorld() != null
+                && selection.getWorld().equals(world);
     }
 }

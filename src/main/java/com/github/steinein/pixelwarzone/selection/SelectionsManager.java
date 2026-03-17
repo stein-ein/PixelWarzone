@@ -1,31 +1,25 @@
 package com.github.steinein.pixelwarzone.selection;
 
-import org.spongepowered.api.entity.living.player.Player;
+import net.minecraft.server.level.ServerPlayer;
 
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 
 public class SelectionsManager {
 
-    private final Map<Player, WarzoneSelection> selections = new HashMap<>();
+    private final Map<UUID, WarzoneSelection> selections = new HashMap<>();
 
-    public void addSelection(final Player player, final WarzoneSelection selection) {
-        this.selections.put(player, selection);
+    public void addSelection(final ServerPlayer player, final WarzoneSelection selection) {
+        this.selections.put(player.getUUID(), selection);
     }
 
-    public void removeSelection(final Player player) {
-        if (this.hasSelection(player)) {
-            this.selections.remove(player);
-        }
+    public void removeSelection(final ServerPlayer player) {
+        this.selections.remove(player.getUUID());
     }
 
-    public Optional<WarzoneSelection> getSelection(final Player player) {
-        return Optional.ofNullable(this.selections.get(player));
+    public Optional<WarzoneSelection> getSelection(final ServerPlayer player) {
+        return Optional.ofNullable(this.selections.get(player.getUUID()));
     }
-
-    private boolean hasSelection(final Player player) {
-        return this.selections.containsKey(player);
-    }
-
 }

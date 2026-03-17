@@ -1,121 +1,58 @@
 package com.github.steinein.pixelwarzone.commands;
 
 import com.github.steinein.pixelwarzone.PixelWarzone;
-import com.github.steinein.pixelwarzone.WarzonePermission;
 import com.github.steinein.pixelwarzone.messages.Message;
 import com.github.steinein.pixelwarzone.selection.Point;
-import com.github.steinein.pixelwarzone.selection.SelectionsManager;
 import com.github.steinein.pixelwarzone.selection.WarzoneSelection;
-import org.spongepowered.api.command.CommandResult;
-import org.spongepowered.api.command.spec.CommandSpec;
-import org.spongepowered.api.entity.living.player.Player;
-import org.spongepowered.api.text.Text;
+import com.mojang.brigadier.context.CommandContext;
+import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.server.level.ServerPlayer;
 
 import java.util.Optional;
 
 public class SetWarzonePosition {
 
-    private final CommandSpec specPosFirst;
-    private final CommandSpec specPosSecond;
+    private final PixelWarzone plugin;
 
     public SetWarzonePosition(final PixelWarzone plugin) {
-
-        specPosFirst = CommandSpec.builder()
-                .description(Text.of("Sets first position for a new Warzone."))
-                .permission(WarzonePermission.DEFINE_WARZONE)
-                .executor((src, args) -> {
-
-                    if (src instanceof Player) {
-
-                        this.setPosition(SelectionType.FIRST, (Player) src, plugin.getSelectionsManager());
-
-                        return CommandResult.success();
-
-                    } else {
-
-                        src.sendMessage(Message.NOT_A_PLAYER_ERROR.getMessage());
-
-                        return CommandResult.empty();
-
-                    }
-
-                })
-                .build();
-
-        specPosSecond = CommandSpec.builder()
-                .description(Text.of("Sets second position for a new Warzone."))
-                .permission(WarzonePermission.DEFINE_WARZONE)
-                .executor((src, args) -> {
-
-                    if (src instanceof Player) {
-
-                        this.setPosition(SelectionType.SECOND, (Player) src, plugin.getSelectionsManager());
-
-                        return CommandResult.success();
-
-                    } else {
-
-                        src.sendMessage(Message.NOT_A_PLAYER_ERROR.getMessage());
-
-                        return CommandResult.empty();
-
-                    }
-
-                })
-                .build();
-
+        this.plugin = plugin;
     }
 
-    private void setPosition(final SelectionType type, final Player player, final SelectionsManager selMgr) {
+    public int executePos1(CommandContext<CommandSourceStack> ctx) {
+        return setPosition(ctx, true);
+    }
 
-        int x = player.getLocation().getBlockX();
-        int z = player.getLocation().getBlockZ();
-        Point playerLoc = new Point(x, z);
+    public int executePos2(CommandContext<CommandSourceStack> ctx) {
+        return setPosition(ctx, false);
+    }
 
-        Optional<WarzoneSelection> selection = selMgr.getSelection(player);
-
-        if (selection.isPresent()) {
-
-            selection.get().setWorld(player.getWorld().getName());
-
-            if (type == SelectionType.FIRST) {
-                selection.get().setFirstPos(playerLoc);
-            } else {
-                selection.get().setSecondPos(playerLoc);
-            }
-
-
-        } else {
-
-            WarzoneSelection newSel = new WarzoneSelection();
-
-            if (type == SelectionType.FIRST) {
-                newSel.setFirstPos(playerLoc);
-            } else {
-                newSel.setSecondPos(playerLoc);
-            }
-
-            selMgr.addSelection(player, newSel);
-
+    private int setPosition(CommandContext<CommandSourceStack> ctx, boolean first) {
+        ServerPlayer player;
+        try {
+            player = ctx.getSource().getPlayerOrException();
+        } catch (Exception e) {
+            ctx.getSource().sendSystemMessage(Message.NOT_A_PLAYER_ERROR.getMessage());
+            return 0;
         }
 
-        int num = (type == SelectionType.FIRST) ? 1 : 2;
+        int x = player.blockPosition().getX();
+        int z = player.blockPosition().getZ();
+        String world = player.level().dimension().location().toString();
+        Point pt = new Point(x, z);
 
-        player.sendMessage(Message.SELECTION_DEFINE.getMessage(num, playerLoc.toString()));
+        Optional<WarzoneSelection> selOpt = plugin.getSelectionsManager().getSelection(player);
+        WarzoneSelection sel = selOpt.orElse(new WarzoneSelection());
 
+        sel.setWorld(world);
+        if (first) sel.setFirstPos(pt);
+        else sel.setSecondPos(pt);
+
+        if (selOpt.isEmpty()) {
+            plugin.getSelectionsManager().addSelection(player, sel);
+        }
+
+        int num = first ? 1 : 2;
+        player.sendSystemMessage(Message.SELECTION_DEFINE.getMessage(num, pt.toString()));
+        return 1;
     }
-
-    private enum SelectionType {
-        FIRST,
-        SECOND
-    }
-
-    public CommandSpec getSpecPosFirst() {
-        return this.specPosFirst;
-    }
-
-    public CommandSpec getSpecPosSecond() {
-        return this.specPosSecond;
-    }
-
 }
